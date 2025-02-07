@@ -1,6 +1,6 @@
 use ratatui::layout::Flex;
-use ratatui::widgets::{Clear, TableState};
-use ratatui::widgets::{BorderType, Cell, Row, Table};
+use ratatui::widgets::Clear;
+use ratatui::widgets::BorderType;
 
 use std::io;
 
@@ -12,36 +12,13 @@ use ratatui::{
     layout::Rect,
     style::Stylize,
     symbols::border,
-    text::{Line, Text},
+    text::Line,
     widgets::{Block, Borders, Paragraph, Widget},
     DefaultTerminal, Frame,};
 
 
 use crate::grade::*;
-
-struct Theme {
-    buffer_bg: Color,
-    header_bg: Color,
-    header_fg: Color,
-    row_fg: Color,
-    selected_row_style_fg: Color,
-    normal_row_color: Color,
-    alt_row_color: Color,
-}
-
-impl Theme {
-    const fn new() -> Self {
-        Self {
-            buffer_bg: Color::Rgb(28, 28, 28),    // Dark
-            header_bg: Color::Reset,  //
-            header_fg: Color::Reset, //
-            row_fg: Color::Rgb(213, 196, 161),
-            selected_row_style_fg: Color::Yellow, // Yellow
-            normal_row_color: Color::Rgb(60, 56, 54),        //gray
-            alt_row_color: Color::Rgb(80, 73, 69),           // gray
-        }
-    }
-}
+use crate::table::GradeTable;
 
 
 #[derive(Debug, PartialEq)]
@@ -53,48 +30,27 @@ pub enum AppState {
 }
 
 pub struct App {
-    state: AppState, 
-    table_state: TableState,
-    colors: Theme,
-    data: GradeCalculator
+    state: AppState,
+    table: GradeTable,
+    data: GradeCalculator,
 }
 
 impl App {
     pub fn new() -> Self {
+        let data = GradeCalculator::default();
         Self {
             state: AppState::Running,
-            table_state: TableState::default().with_selected(0),
-            colors: Theme::new(),
-            data: GradeCalculator::default()
+            table: GradeTable::new(data.calc()),
+            data,
         }
+
     }
 
     pub fn set_points(&mut self, points: u32) {
         self.data.points = points;
-        // self.items = calculate_grade_ranges(self.points, &self.algo);
+        self.table.data(self.data.calc());
     }
 
-    pub fn next_row(&mut self) {
-        let i = match self.table_state.selected() {
-            Some(i) => (i + 1) % 6,
-            None => 0,
-        };
-        self.table_state.select(Some(i));
-    }
-
-    pub fn previous_row(&mut self) {
-        let i = match self.table_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    5
-                } else {
-                    (i - 1) % 6
-                }
-            }
-            None => 0,
-        };
-        self.table_state.select(Some(i));
-    }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while self.state != AppState::Exited {
@@ -139,7 +95,7 @@ impl App {
         .areas(main_area);
 
         self.render_header(header_area, frame.buffer_mut());
-        self.render_table(table_area, frame.buffer_mut());
+        self.table.render(table_area, frame.buffer_mut());
 
         
         if self.state == AppState::RunningEditPoints {
@@ -183,8 +139,8 @@ impl App {
                     self.set_points(self.data.points / 10 );
                 }
             }
-            KeyCode::Char('j') | KeyCode::Down => self.next_row(),
-            KeyCode::Char('k') | KeyCode::Up => self.previous_row(),
+            KeyCode::Char('j') | KeyCode::Down => self.table.next_row(),
+            KeyCode::Char('k') | KeyCode::Up => self.table.previous_row(),
             KeyCode::Char('p') => self.state = AppState::RunningEditPoints,
             KeyCode::Char('I') => self.data.scale = GradeScale::IHK,
             KeyCode::Char('T') => self.data.scale = GradeScale::TECHNIKER,
@@ -217,54 +173,6 @@ impl App {
         bar.render(bar_area, buf);
 
 
-    }
-
-    fn render_table(&mut self, area: Rect, buf: &mut Buffer) {
-        let header_style = Style::default()
-            .fg(self.colors.header_fg)
-            .bg(self.colors.header_bg);
-        let selected_row_style = Style::default()
-            .add_modifier(Modifier::REVERSED)
-            .fg(scale_color(&self.data.scale)).bold();  // todo!()
-
-        let header = ["GRADE", "FROM", "TO"]
-            .into_iter()
-            .map(Cell::from)
-            .collect::<Row>()
-            .style(header_style)
-            .height(1);
-
-        let items = self.data.calc(); //calc_ranges(self.data.points, &self.data.scale.values().to_vec());
-        let rows = items.iter().enumerate().map(|(i, item)| {
-            let color = match i % 2 {
-                0 => self.colors.normal_row_color,
-                _ => self.colors.alt_row_color,
-            };
-
-            item.ref_array()
-                .into_iter()
-                .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
-                .collect::<Row>()
-                .style(Style::new().fg(self.colors.row_fg).bg(color))
-                .height(3)
-        });
-        let bar = " █ ";
-        let table = Table::new(
-            rows,
-            [
-                // + 1 is for padding.
-                Constraint::Fill(2),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-            ],
-        )
-        .header(header)
-        .row_highlight_style(selected_row_style)
-        .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
-        // .bg(self.colors.buffer_bg)
-        .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
-        .block(Block::default().borders(Borders::ALL).title("📋 Point Distribution."));
-        StatefulWidget::render(table, area, buf, &mut self.table_state);
     }
 
 

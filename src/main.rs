@@ -14,6 +14,7 @@ pub use app::App;
 
 pub mod app;
 mod grade;
+mod table;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
