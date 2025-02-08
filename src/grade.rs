@@ -1,4 +1,3 @@
-
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
     (1, 0.92),
     (2, 0.81),
@@ -8,14 +7,8 @@ const IHK_BOUNDARIES: [(u8, f64); 6] = [
     (6, 0.0),
 ];
 
-const TECHNIKER_BOUNDARIES: [(u8, f64); 6] = [
-    (1, 0.85),
-    (2, 0.7),
-    (3, 0.55),
-    (4, 0.4),
-    (5, 0.2),
-    (6, 0.0),
-];
+const TECHNIKER_BOUNDARIES: [(u8, f64); 6] =
+    [(1, 0.85), (2, 0.7), (3, 0.55), (4, 0.4), (5, 0.2), (6, 0.0)];
 
 const LINEAR_BOUNDARIES: [(u8, f64); 6] = [
     (1, 0.87),
@@ -31,25 +24,63 @@ pub enum GradeScale {
     IHK,
     TECHNIKER,
     LINEAR,
-    CUSTOM([(u8, f64); 6])
+    Custom([(u8, f64); 6]),
 }
 
 impl GradeScale {
+    // return the boundary values for a scale.
     pub fn values(&self) -> [(u8, f64); 6] {
         match self {
             GradeScale::IHK => IHK_BOUNDARIES,
             GradeScale::TECHNIKER => TECHNIKER_BOUNDARIES,
             GradeScale::LINEAR => LINEAR_BOUNDARIES,
-            GradeScale::CUSTOM(values) => *values,
+            GradeScale::Custom(values) => *values,
         }
     }
 
+    // return a text representation of the scale
     pub fn text(&self) -> &'static str {
         match self {
             GradeScale::IHK => "IHK",
             GradeScale::TECHNIKER => "TECHNIKER",
             GradeScale::LINEAR => "LINEAR",
-            GradeScale::CUSTOM(_) => "CUSTOM",
+            GradeScale::Custom(_) => "CUSTOM",
+        }
+    }
+
+    // Check if it is a custom scale
+    pub fn is_custom(&self) -> bool {
+        matches!(self, GradeScale::Custom(_))
+    }
+
+    // Convert to a custom scale
+    pub fn to_custom(&self) -> GradeScale {
+        GradeScale::Custom(self.values())
+    }
+
+    // change a value in the custom scale.
+    // the given value will be clamped to 0-1.
+    pub fn change(&mut self, index: usize, value: f64) {
+        // only if Custom scale
+        if let GradeScale::Custom(values) = self {
+            // check if index is not out of bound
+            if (0..=5).contains(&index) {
+                values[index].1 = (value).clamp(0.0, 1.0); // Ensure no overflow
+            }
+        }
+    }
+
+    pub fn inc_pct(&mut self, idx: usize) {
+        assert!((0..=5).contains(&idx));
+        if let GradeScale::Custom(values) = self {
+            values[idx].1 = (values[idx].1 + 0.01).min(1.0); // Ensure no overflow
+        }
+    }
+
+    pub fn dec_pct(&mut self, idx: usize) {
+        assert!((0..=5).contains(&idx));
+        if let GradeScale::Custom(values) = self {
+            values[idx].1 = (values[idx].1 - 0.01).max(0.0); // Ensure no overflow
         }
     }
 }
@@ -61,7 +92,6 @@ impl Default for GradeScale {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct GradeRange {
     min: f64,
@@ -70,13 +100,10 @@ pub struct GradeRange {
 
 impl GradeRange {
     pub fn new(min: f64, max: f64) -> Self {
-        Self {
-            min,
-            max,
-        }
-    } 
+        Self { min, max }
+    }
 
-    pub fn limits(&self) -> (f64,f64) {
+    pub fn limits(&self) -> (f64, f64) {
         (self.min, self.max)
     }
 }
@@ -90,19 +117,31 @@ impl Grade {
     pub fn new(value: u32, min: f64, max: f64) -> Self {
         Self {
             value,
-            range: GradeRange::new(min, max)
+            range: GradeRange::new(min, max),
         }
     }
-    
-    pub const fn ref_array(&self) -> [f64; 3] {
+
+    pub fn ref_array(&self) -> [f64; 4] {
         [
             self.value as f64,
             self.range.min,
             self.range.max,
+            self.range.min / self.range.max,
         ]
     }
-}
 
+    pub fn value(&self) -> u32 {
+        self.value
+    }
+
+    pub fn min(&self) -> f64 {
+        self.range.min
+    }
+
+    pub fn max(&self) -> f64 {
+        self.range.max
+    }
+}
 
 // Grading Calculator
 #[derive(Debug, Clone)]
@@ -114,7 +153,11 @@ pub struct GradeCalculator {
 
 impl Default for GradeCalculator {
     fn default() -> Self {
-        Self { points: 100, scale: GradeScale::IHK, half: false}
+        Self {
+            points: 100,
+            scale: GradeScale::IHK,
+            half: false,
+        }
     }
 }
 
@@ -135,7 +178,7 @@ impl GradeCalculator {
         self
     }
 
-    pub fn toggle_half(&mut self){
+    pub fn toggle_half(&mut self) {
         self.half = !self.half
     }
 
@@ -156,16 +199,13 @@ impl GradeCalculator {
             let max_points = if i == 0 {
                 self.points as f64
             } else {
-                let sub = if self.half {0.5} else { 1.0 };
+                let sub = if self.half { 0.5 } else { 1.0 };
                 (max_percentage * self.points as f64).round() - sub
             };
 
-            grades.push(Grade::new(grade as u32, min_points , max_points) );
+            grades.push(Grade::new(grade as u32, min_points, max_points));
         }
 
         grades
     }
 }
-
-
-

@@ -7,14 +7,14 @@ use ratatui::{
     style::Stylize,
     symbols::border,
     text::Line,
-    widgets::{Block,  Paragraph},
+    widgets::{Block, Paragraph},
     DefaultTerminal, Frame,
 };
 
 use crate::fields::NumberInputField;
 use crate::grade::*;
+use crate::helpers::round_dp;
 use crate::table::GradeTable;
-
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
@@ -44,7 +44,7 @@ impl App {
 
     pub fn set_points(&mut self, points: u32) {
         self.data.points = points;
-        self.table.update(self.data.calc());
+        self.update_table();
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -84,8 +84,12 @@ impl App {
         ])
         .areas(inner);
 
-        let [_, table_area, _] =
-            Layout::horizontal([Constraint::Fill(1), Constraint::Max(80), Constraint::Fill(1)]).areas(main_area);
+        let [_, table_area, _] = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Max(80),
+            Constraint::Fill(1),
+        ])
+        .areas(main_area);
 
         // self.render_header(header_area, frame.buffer_mut());
         let text = format!(" {} ", self.data.scale.text());
@@ -108,14 +112,14 @@ impl App {
             .right_aligned()
             .style(bar_style);
 
-        frame.render_widget(scale_identifier, scale_identifier_area); 
-        frame.render_widget(version, version_area); 
+        frame.render_widget(scale_identifier, scale_identifier_area);
+        frame.render_widget(version, version_area);
 
         if self.state == AppState::RunningEditPoints {
-            let input = Paragraph::new(format!(" max:{}",self.point_edit_field.get_input()))
+            let input = Paragraph::new(format!(" max:{}", self.point_edit_field.get_input()))
                 .style(bar_style.fg(Color::Yellow));
 
-            frame.render_widget(input, input_area); 
+            frame.render_widget(input, input_area);
 
             // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
             #[allow(clippy::cast_possible_truncation)]
@@ -131,9 +135,7 @@ impl App {
         }
 
         self.table.render(table_area, frame.buffer_mut());
-
     }
-
 
     fn handle_events(&mut self) -> io::Result<()> {
         match event::read()? {
@@ -150,19 +152,48 @@ impl App {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match self.state {
             AppState::Running => match key_event.code {
-                KeyCode::Char('j') | KeyCode::Down => self.table.next_row(),
-                KeyCode::Char('k') | KeyCode::Up => self.table.previous_row(),
                 KeyCode::Char('p') => self.state = AppState::RunningEditPoints,
+
                 KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
                 KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
                 KeyCode::Char('L') => self.change_scale(GradeScale::LINEAR),
-                KeyCode::Char('C') => {
-                    // open dialog to add a custom scale
-                    todo!()
+                KeyCode::Char('C') => self.change_scale(self.data.scale.to_custom()),
+
+                KeyCode::PageUp | KeyCode::Char('+') => {
+                    if self.data.scale.is_custom() {
+                        match self.table.selected() {
+                            Some(i) => {
+                                // get current min point
+                                if let Some(min) = self.table.selected_min() {
+                                    self.data.scale.change(i, round_dp((min + 1.0) / self.data.points as f64,2));                                   
+                                    self.update_table();
+                                };
+                            }
+                            None => {}
+                        }
+                    }
                 }
-                KeyCode::Char('h') => {
+
+                KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
+                KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
+                KeyCode::PageDown | KeyCode::Char('-') => {
+                    if self.data.scale.is_custom() {
+                        match self.table.selected() {
+                            Some(i) => {
+                                // get current min point
+                                if let Some(min) = self.table.selected_min() {
+                                    self.data.scale.change(i, round_dp((min - 1.0) / self.data.points as f64,2));                                   
+                                    self.update_table();
+                                };
+                            }
+                            None => {}
+                        }
+                    }
+                }
+
+                KeyCode::Char('.') => {
                     self.data.toggle_half();
-                    self.table.update(self.data.calc());
+                    self.update_table();
                 }
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
@@ -180,8 +211,11 @@ impl App {
                 }
                 _ => {}
             },
-            AppState::RunningShowHelp => todo!(),
-            AppState::Exited => todo!(),
+            AppState::RunningShowHelp => match key_event.code {
+                KeyCode::Esc => self.state = AppState::Running,
+                _ => {}
+            },
+            AppState::Exited => {}
         }
     }
 
@@ -189,15 +223,16 @@ impl App {
         self.state = AppState::Exited
     }
 
-    fn change_scale(&mut self, scale: GradeScale) {
-        self.table.set_selected_row_color(scale_color(&scale));
-        self.data.scale = scale;
+    fn update_table(&mut self) {
         self.table.update(self.data.calc());
     }
 
+    fn change_scale(&mut self, scale: GradeScale) {
+        self.table.set_selected_row_color(scale_color(&scale));
+        self.data.scale = scale;
+        self.update_table();
+    }
 }
-
-
 
 /// helper function to get scale colors
 fn scale_color(scale: &GradeScale) -> Color {
@@ -205,6 +240,6 @@ fn scale_color(scale: &GradeScale) -> Color {
         GradeScale::IHK => Color::Yellow,
         GradeScale::TECHNIKER => Color::Blue,
         GradeScale::LINEAR => Color::Green,
-        GradeScale::CUSTOM(_) => Color::Red,
+        GradeScale::Custom(_) => Color::LightRed,
     }
 }

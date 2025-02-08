@@ -1,21 +1,18 @@
-
 use std::io;
 
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::disable_raw_mode;
 use ratatui::crossterm::terminal::enable_raw_mode;
 
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
+use ratatui::{backend::CrosstermBackend, Terminal};
 
 pub use app::App;
 
 pub mod app;
-mod grade;
-mod table;
 mod fields;
+mod grade;
+mod helpers;
+mod table;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
@@ -27,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // create app and run it
     let mut app = App::new();
-    let res = app.run(&mut terminal);
+    let _res = app.run(&mut terminal);
 
     // restore terminal
     disable_raw_mode()?;
