@@ -160,6 +160,10 @@ impl App {
                     // open dialog to add a custom scale
                     todo!()
                 }
+                KeyCode::Char('h') => {
+                    self.data.toggle_half();
+                    self.table.update(self.data.calc());
+                }
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
             },

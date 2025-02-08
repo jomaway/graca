@@ -9,11 +9,11 @@ const IHK_BOUNDARIES: [(u8, f64); 6] = [
 ];
 
 const TECHNIKER_BOUNDARIES: [(u8, f64); 6] = [
-    (1, 0.9),
+    (1, 0.85),
     (2, 0.7),
-    (3, 0.6),
+    (3, 0.55),
     (4, 0.4),
-    (5, 0.3),
+    (5, 0.2),
     (6, 0.0),
 ];
 
@@ -64,19 +64,19 @@ impl Default for GradeScale {
 
 #[derive(Debug, Clone)]
 pub struct GradeRange {
-    min: u32,
-    max: u32,
+    min: f64,
+    max: f64,
 }
 
 impl GradeRange {
-    pub fn new(min: u32, max: u32) -> Self {
+    pub fn new(min: f64, max: f64) -> Self {
         Self {
             min,
             max,
         }
     } 
 
-    pub fn limits(&self) -> (u32,u32) {
+    pub fn limits(&self) -> (f64,f64) {
         (self.min, self.max)
     }
 }
@@ -87,16 +87,16 @@ pub struct Grade {
 }
 
 impl Grade {
-    pub fn new(value: u32, min: u32, max: u32) -> Self {
+    pub fn new(value: u32, min: f64, max: f64) -> Self {
         Self {
             value,
             range: GradeRange::new(min, max)
         }
     }
     
-    pub const fn ref_array(&self) -> [u32; 3] {
+    pub const fn ref_array(&self) -> [f64; 3] {
         [
-            self.value,
+            self.value as f64,
             self.range.min,
             self.range.max,
         ]
@@ -108,12 +108,13 @@ impl Grade {
 #[derive(Debug, Clone)]
 pub struct GradeCalculator {
     pub points: u32,
-    pub scale: GradeScale
+    pub scale: GradeScale,
+    pub half: bool,
 }
 
 impl Default for GradeCalculator {
     fn default() -> Self {
-        Self { points: 100, scale: GradeScale::IHK }
+        Self { points: 100, scale: GradeScale::IHK, half: false}
     }
 }
 
@@ -134,12 +135,16 @@ impl GradeCalculator {
         self
     }
 
+    pub fn toggle_half(&mut self){
+        self.half = !self.half
+    }
+
     pub fn calc(&self) -> Vec<Grade> {
         let mut grades = Vec::new();
 
         let scale_values = self.scale.values();
         for i in 0..scale_values.len() {
-            let grade = scale_values[i].0.clone();
+            let grade = scale_values[i].0;
             let min_percentage = scale_values[i].1;
             let max_percentage = if i == 0 {
                 1.0 // Maximum percentage for grade 1
@@ -151,12 +156,16 @@ impl GradeCalculator {
             let max_points = if i == 0 {
                 self.points as f64
             } else {
-                (max_percentage * self.points as f64).round() - 1.0
+                let sub = if self.half {0.5} else { 1.0 };
+                (max_percentage * self.points as f64).round() - sub
             };
 
-            grades.push(Grade::new(grade as u32, min_points as u32, max_points as u32) );
+            grades.push(Grade::new(grade as u32, min_points , max_points) );
         }
 
         grades
     }
 }
+
+
+
