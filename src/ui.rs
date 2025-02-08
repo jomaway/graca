@@ -1,7 +1,7 @@
-use ratatui::layout::Constraint;
+use ratatui::layout::{Alignment, Constraint};
 use ratatui::style::Stylize;
-use ratatui::text::Text;
-use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+use ratatui::text::{Line, Text};
+use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget};
 use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{StatefulWidget, TableState},
@@ -55,7 +55,7 @@ impl GradeTable {
     pub fn selected_min(&self) -> Option<f64> {
         match self.state.selected() {
             Some(i) => Some(self.data[i].min()),
-            None => None
+            None => None,
         }
     }
 
@@ -149,3 +149,33 @@ impl GradeTable {
         StatefulWidget::render(table, area, buf, &mut self.state);
     }
 }
+
+pub fn render_help(area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+    let instructions = vec![
+        Line::from(vec!["< F1 >".magenta().bold(), " Show this popup. ".into()]),
+        Line::from(vec!["< q > ".magenta().bold()," Quit the app. ".into()]),
+        Line::from(""),
+        Line::from(vec!["< p >".yellow().bold()," Open points input. ".into()]),
+        Line::from(vec!["< . >".yellow().bold()," Toggle half points. ".into()]),
+        Line::from(""),
+        Line::from(vec!["< I >".blue().bold()," Change to the IHK scale. ".into()]),
+        Line::from(vec!["< T >".blue().bold()," Change to the TECHNIKER scale. ".into()]),
+        Line::from(vec!["< L >".blue().bold()," Change to the linear scale. ".into()]),
+        Line::from(vec!["< C >".blue().bold()," Change to a custom scale. ".into()]),
+        Line::from(""),
+        Line::from(vec!["< UP >".green().bold()," Select prev row. ".into()]),
+        Line::from(vec!["< DOWN >".green().bold()," Select next row. ".into()]),
+        Line::from(vec!["< + >".green().bold()," Increase min point for selected row. ".into()]),
+        Line::from(vec!["< - >".green().bold()," Decrease min point for selected row. ".into()]),
+
+    ];
+
+
+    // Render the popup as a Paragraph
+    let popup = Paragraph::new(instructions)
+    .block(Block::default().title("Available Shortcuts").borders(Borders::ALL))
+    .alignment(Alignment::Left);
+
+    popup.render(area, buf);
+}
+

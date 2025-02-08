@@ -12,7 +12,7 @@ pub mod app;
 mod fields;
 mod grade;
 mod helpers;
-mod table;
+mod ui;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal

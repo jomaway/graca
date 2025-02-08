@@ -14,7 +14,7 @@ use ratatui::{
 use crate::fields::NumberInputField;
 use crate::grade::*;
 use crate::helpers::round_dp;
-use crate::table::GradeTable;
+use crate::ui::{render_help, GradeTable};
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
@@ -60,11 +60,11 @@ impl App {
 
         let instructions = Line::from(vec![
             " Help ".into(),
-            "<F1>".blue().bold(),
+            "<F1>".magenta().bold(),
+            " Quit ".into(),
+            "<q> ".magenta().bold(),
             " Set Points ".into(),
             "<p>".blue().bold(),
-            " Quit ".into(),
-            "<q> ".blue().bold(),
         ]);
         let block = Block::bordered()
             .title_bottom(instructions.centered())
@@ -92,9 +92,11 @@ impl App {
         .areas(main_area);
 
         // self.render_header(header_area, frame.buffer_mut());
-        let text = format!(" {} ", self.data.scale.text());
+        let text = if self.state == AppState::RunningShowHelp { format!(" HELP ") }
+        else { format!(" {} ", self.data.scale.text()) };
 
-        let color = scale_color(&self.data.scale);
+        let color = if self.state == AppState::RunningShowHelp { Color::Magenta }
+            else { scale_color(&self.data.scale) };
 
         let [scale_identifier_area, input_area, version_area] = Layout::horizontal([
             Constraint::Min(text.len() as u16),
@@ -134,7 +136,12 @@ impl App {
             frame.render_widget(Paragraph::new("").style(bar_style), input_area);
         }
 
-        self.table.render(table_area, frame.buffer_mut());
+        
+        if self.state == AppState::RunningShowHelp {
+            render_help(table_area, frame.buffer_mut());
+        } else {
+            self.table.render(table_area, frame.buffer_mut());
+        }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -195,6 +202,7 @@ impl App {
                     self.data.toggle_half();
                     self.update_table();
                 }
+                KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
             },
@@ -213,6 +221,7 @@ impl App {
             },
             AppState::RunningShowHelp => match key_event.code {
                 KeyCode::Esc => self.state = AppState::Running,
+                KeyCode::Char('q') => self.exit(),
                 _ => {}
             },
             AppState::Exited => {}
