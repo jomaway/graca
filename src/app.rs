@@ -11,6 +11,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
+use crate::fields::NumberInputField;
 use crate::grade::*;
 use crate::table::GradeTable;
 
@@ -26,7 +27,7 @@ pub enum AppState {
 pub struct App {
     state: AppState,
     table: GradeTable,
-    point_edit_field: InputField,
+    point_edit_field: NumberInputField,
     data: GradeCalculator,
 }
 
@@ -36,7 +37,7 @@ impl App {
         Self {
             state: AppState::Running,
             table: GradeTable::new(data.calc()),
-            point_edit_field: InputField::new(),
+            point_edit_field: NumberInputField::new(),
             data,
         }
     }
@@ -111,7 +112,7 @@ impl App {
         frame.render_widget(version, version_area); 
 
         if self.state == AppState::RunningEditPoints {
-            let input = Paragraph::new(format!(" max:{}",self.point_edit_field.input.as_str()))
+            let input = Paragraph::new(format!(" max:{}",self.point_edit_field.get_input()))
                 .style(bar_style.fg(Color::Yellow));
 
             frame.render_widget(input, input_area); 
@@ -122,7 +123,7 @@ impl App {
                 // Draw the cursor at the current position in the input field.
                 // This position is can be controlled via the left and right arrow key
                 // the plus 5 comes from the max: which is printed before.
-                input_area.x + self.point_edit_field.character_index as u16 + 5,
+                input_area.x + self.point_edit_field.get_index() as u16 + 5,
                 input_area.y,
             ))
         } else {
@@ -180,8 +181,6 @@ impl App {
         }
     }
 
-
-
     fn exit(&mut self) {
         self.state = AppState::Exited
     }
@@ -203,89 +202,5 @@ fn scale_color(scale: &GradeScale) -> Color {
         GradeScale::TECHNIKER => Color::Blue,
         GradeScale::LINEAR => Color::Green,
         GradeScale::CUSTOM(_) => Color::Red,
-    }
-}
-
-pub struct InputField {
-    input: String,
-    character_index: usize,
-}
-
-impl InputField {
-    const fn new() -> Self {
-        Self {
-            input: String::new(),
-            character_index: 0,
-        }
-    }
-
-    fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.character_index.saturating_sub(1);
-        self.character_index = self.clamp_cursor(cursor_moved_left);
-    }
-
-    fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.character_index.saturating_add(1);
-        self.character_index = self.clamp_cursor(cursor_moved_right);
-    }
-
-    fn enter_char(&mut self, new_char: char) {
-        // add guard to max insert 10 digits.
-        if self.input.len() < 10 {
-            let index = self.byte_index();
-            self.input.insert(index, new_char);
-            self.move_cursor_right();
-        }
-    }
-
-    /// Returns the byte index based on the character position.
-    ///
-    /// Since each character in a string can be contain multiple bytes, it's necessary to calculate
-    /// the byte index based on the index of the character.
-    fn byte_index(&self) -> usize {
-        self.input
-            .char_indices()
-            .map(|(i, _)| i)
-            .nth(self.character_index)
-            .unwrap_or(self.input.len())
-    }
-
-    fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.character_index != 0;
-        if is_not_cursor_leftmost {
-            // Method "remove" is not used on the saved text for deleting the selected char.
-            // Reason: Using remove on String works on bytes instead of the chars.
-            // Using remove would require special care because of char boundaries.
-
-            let current_index = self.character_index;
-            let from_left_to_current_index = current_index - 1;
-
-            // Getting all characters before the selected character.
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            // Getting all characters after selected character.
-            let after_char_to_delete = self.input.chars().skip(current_index);
-
-            // Put all characters together except the selected one.
-            // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
-            self.move_cursor_left();
-        }
-    }
-
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.input.chars().count())
-    }
-
-    fn reset_cursor(&mut self) {
-        self.character_index = 0;
-    }
-
-    /// return the input as number
-    /// todo: split returning the value and converting to a number into seperate things.
-    fn get_number(&mut self) -> u32 {
-        let mut number: u32 = self.input.parse().expect("Not a valid number");
-        self.input.clear();
-        self.reset_cursor();
-        number
     }
 }
