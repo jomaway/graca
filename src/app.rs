@@ -43,7 +43,7 @@ impl App {
 
     pub fn set_points(&mut self, points: u32) {
         self.data.points = points;
-        self.table.data(self.data.calc());
+        self.table.update(self.data.calc());
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -152,9 +152,9 @@ impl App {
                 KeyCode::Char('j') | KeyCode::Down => self.table.next_row(),
                 KeyCode::Char('k') | KeyCode::Up => self.table.previous_row(),
                 KeyCode::Char('p') => self.state = AppState::RunningEditPoints,
-                KeyCode::Char('I') => self.data.scale = GradeScale::IHK,
-                KeyCode::Char('T') => self.data.scale = GradeScale::TECHNIKER,
-                KeyCode::Char('L') => self.data.scale = GradeScale::LINEAR,
+                KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
+                KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
+                KeyCode::Char('L') => self.change_scale(GradeScale::LINEAR),
                 KeyCode::Char('C') => {
                     // open dialog to add a custom scale
                     todo!()
@@ -188,6 +188,12 @@ impl App {
     fn exit(&mut self) {
         self.state = AppState::Exited
     }
+
+    fn change_scale(&mut self, scale: GradeScale) {
+        self.data.scale = scale;
+        self.table.update(self.data.calc());
+    }
+
 }
 
 

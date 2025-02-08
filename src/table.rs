@@ -18,12 +18,12 @@ struct Theme {
 impl Default for Theme {
     fn default() -> Self {
         Self {
-            header_bg: Color::Reset,  //
-            header_fg: Color::Reset, //
+            header_bg: Color::Reset,
+            header_fg: Color::Reset,
             row_fg: Color::Rgb(213, 196, 161),
-            selected_row_style_fg: Color::Yellow, // Yellow
-            normal_row_color: Color::Rgb(60, 56, 54),        //gray
-            alt_row_color: Color::Rgb(80, 73, 69),           // gray
+            selected_row_style_fg: Color::Yellow,
+            normal_row_color: Color::Rgb(60, 56, 54),
+            alt_row_color: Color::Rgb(80, 73, 69),
         }
     }
 }
@@ -44,7 +44,7 @@ impl GradeTable {
         }
     }
 
-    pub fn data(&mut self, data: Vec<Grade>) {
+    pub fn update(&mut self, data: Vec<Grade>) {
         self.data = data
     }
 
