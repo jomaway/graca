@@ -8,7 +8,6 @@ use ratatui::{
 };
 
 use crate::grade::Grade;
-use crate::helpers::round_dp;
 
 struct Theme {
     header_bg: Color,
@@ -34,28 +33,14 @@ impl Default for Theme {
 
 pub struct GradeTable {
     state: TableState,
-    data: Vec<Grade>,
     colors: Theme,
 }
 
 impl GradeTable {
-    pub fn new(data: Vec<Grade>) -> Self {
+    pub fn new() -> Self {
         Self {
             state: TableState::default().with_selected(0),
-            data,
             colors: Theme::default(),
-        }
-    }
-
-    pub fn update(&mut self, data: Vec<Grade>) {
-        self.data = data
-    }
-
-    // return the min value of the selected row
-    pub fn selected_min(&self) -> Option<f64> {
-        match self.state.selected() {
-            Some(i) => Some(self.data[i].min()),
-            None => None,
         }
     }
 
@@ -90,7 +75,12 @@ impl GradeTable {
         self.state.select(Some(i));
     }
 
-    pub fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+    pub fn render(
+        &mut self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        data: &Vec<Grade>,
+    ) {
         let header_style = Style::default()
             .fg(self.colors.header_fg)
             .bg(self.colors.header_bg);
@@ -106,21 +96,17 @@ impl GradeTable {
             .style(header_style)
             .height(1);
 
-        let rows = self.data.iter().enumerate().map(|(i, item)| {
+        let rows = data.iter().enumerate().map(|(i, item)| {
             let color = match i % 2 {
                 0 => self.colors.normal_row_color,
                 _ => self.colors.alt_row_color,
             };
 
-            let arr = item.ref_array();
             Row::new(vec![
                 Cell::from(Text::from(format!("\n{}\n", item.value()))),
                 Cell::from(Text::from(format!("\n{}\n", item.min()))),
                 Cell::from(Text::from(format!("\n{}\n", item.max()))),
-                Cell::from(Text::from(format!(
-                    "\n{}%\n",
-                    round_dp(arr[1] / self.data[0].max(), 2)
-                ))),
+                Cell::from(Text::from(format!("\n{}%\n", item.pct(data[0].max())))),
             ])
             .style(Style::new().fg(self.colors.row_fg).bg(color))
             .height(3)
@@ -153,29 +139,143 @@ impl GradeTable {
 pub fn render_help(area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
     let instructions = vec![
         Line::from(vec!["< F1 >".magenta().bold(), " Show this popup. ".into()]),
-        Line::from(vec!["< q > ".magenta().bold()," Quit the app. ".into()]),
+        Line::from(vec!["< q > ".magenta().bold(), " Quit the app. ".into()]),
         Line::from(""),
-        Line::from(vec!["< p >".yellow().bold()," Open points input. ".into()]),
-        Line::from(vec!["< . >".yellow().bold()," Toggle half points. ".into()]),
+        Line::from(vec!["< p >".yellow().bold(), " Open points input. ".into()]),
+        Line::from(vec![
+            "< . >".yellow().bold(),
+            " Toggle half points. ".into(),
+        ]),
         Line::from(""),
-        Line::from(vec!["< I >".blue().bold()," Change to the IHK scale. ".into()]),
-        Line::from(vec!["< T >".blue().bold()," Change to the TECHNIKER scale. ".into()]),
-        Line::from(vec!["< L >".blue().bold()," Change to the linear scale. ".into()]),
-        Line::from(vec!["< C >".blue().bold()," Change to a custom scale. ".into()]),
+        Line::from(vec![
+            "< I >".blue().bold(),
+            " Change to the IHK scale. ".into(),
+        ]),
+        Line::from(vec![
+            "< T >".blue().bold(),
+            " Change to the TECHNIKER scale. ".into(),
+        ]),
+        Line::from(vec![
+            "< L >".blue().bold(),
+            " Change to the linear scale. ".into(),
+        ]),
+        Line::from(vec![
+            "< C >".blue().bold(),
+            " Change to a custom scale. ".into(),
+        ]),
         Line::from(""),
-        Line::from(vec!["< UP >".green().bold()," Select prev row. ".into()]),
-        Line::from(vec!["< DOWN >".green().bold()," Select next row. ".into()]),
-        Line::from(vec!["< + >".green().bold()," Increase min point for selected row. ".into()]),
-        Line::from(vec!["< - >".green().bold()," Decrease min point for selected row. ".into()]),
-
+        Line::from(vec!["< UP >".green().bold(), " Select prev row. ".into()]),
+        Line::from(vec!["< DOWN >".green().bold(), " Select next row. ".into()]),
+        Line::from(vec![
+            "< + >".green().bold(),
+            " Increase min point for selected row. ".into(),
+        ]),
+        Line::from(vec![
+            "< - >".green().bold(),
+            " Decrease min point for selected row. ".into(),
+        ]),
     ];
-
 
     // Render the popup as a Paragraph
     let popup = Paragraph::new(instructions)
-    .block(Block::default().title("Available Shortcuts").borders(Borders::ALL))
-    .alignment(Alignment::Left);
+        .block(
+            Block::default()
+                .title("Available Shortcuts")
+                .borders(Borders::ALL),
+        )
+        .alignment(Alignment::Left);
 
     popup.render(area, buf);
 }
 
+pub struct NumberInputField {
+    input: String,
+    character_index: usize,
+}
+
+impl NumberInputField {
+    pub const fn new() -> Self {
+        Self {
+            input: String::new(),
+            character_index: 0,
+        }
+    }
+
+    pub fn get_input(&self) -> &str {
+        self.input.as_str()
+    }
+
+    pub fn get_index(&self) -> usize {
+        self.character_index
+    }
+
+    pub fn move_cursor_left(&mut self) {
+        let cursor_moved_left = self.character_index.saturating_sub(1);
+        self.character_index = self.clamp_cursor(cursor_moved_left);
+    }
+
+    pub fn move_cursor_right(&mut self) {
+        let cursor_moved_right = self.character_index.saturating_add(1);
+        self.character_index = self.clamp_cursor(cursor_moved_right);
+    }
+
+    pub fn enter_char(&mut self, new_char: char) {
+        // add guard to max insert 9 digits, to not overflow u32.
+        if self.input.len() < 10 {
+            let index = self.byte_index();
+            self.input.insert(index, new_char);
+            self.move_cursor_right();
+        }
+    }
+
+    /// Returns the byte index based on the character position.
+    ///
+    /// Since each character in a string can be contain multiple bytes, it's necessary to calculate
+    /// the byte index based on the index of the character.
+    fn byte_index(&self) -> usize {
+        self.input
+            .char_indices()
+            .map(|(i, _)| i)
+            .nth(self.character_index)
+            .unwrap_or(self.input.len())
+    }
+
+    pub fn delete_char(&mut self) {
+        let is_not_cursor_leftmost = self.character_index != 0;
+        if is_not_cursor_leftmost {
+            // Method "remove" is not used on the saved text for deleting the selected char.
+            // Reason: Using remove on String works on bytes instead of the chars.
+            // Using remove would require special care because of char boundaries.
+
+            let current_index = self.character_index;
+            let from_left_to_current_index = current_index - 1;
+
+            // Getting all characters before the selected character.
+            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
+            // Getting all characters after selected character.
+            let after_char_to_delete = self.input.chars().skip(current_index);
+
+            // Put all characters together except the selected one.
+            // By leaving the selected one out, it is forgotten and therefore deleted.
+            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.move_cursor_left();
+        }
+    }
+
+    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+        new_cursor_pos.clamp(0, self.input.chars().count())
+    }
+
+    fn reset_cursor(&mut self) {
+        self.character_index = 0;
+    }
+
+    /// return the input as number
+    /// todo: split returning the value and converting to a number into seperate things.
+    pub fn get_number(&mut self) -> u32 {
+        let number: u32 = self.input.parse().expect("Not a valid number");
+        self.input.clear();
+        self.reset_cursor();
+        number
+    }
+}

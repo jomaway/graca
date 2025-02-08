@@ -9,7 +9,6 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 pub use app::App;
 
 pub mod app;
-mod fields;
 mod grade;
 mod helpers;
 mod ui;

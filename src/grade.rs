@@ -1,3 +1,5 @@
+use crate::helpers::round_dp;
+
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
     (1, 0.92),
     (2, 0.81),
@@ -69,20 +71,6 @@ impl GradeScale {
             }
         }
     }
-
-    pub fn inc_pct(&mut self, idx: usize) {
-        assert!((0..=5).contains(&idx));
-        if let GradeScale::Custom(values) = self {
-            values[idx].1 = (values[idx].1 + 0.01).min(1.0); // Ensure no overflow
-        }
-    }
-
-    pub fn dec_pct(&mut self, idx: usize) {
-        assert!((0..=5).contains(&idx));
-        if let GradeScale::Custom(values) = self {
-            values[idx].1 = (values[idx].1 - 0.01).max(0.0); // Ensure no overflow
-        }
-    }
 }
 
 // make the IHK scale the default
@@ -98,16 +86,6 @@ pub struct GradeRange {
     max: f64,
 }
 
-impl GradeRange {
-    pub fn new(min: f64, max: f64) -> Self {
-        Self { min, max }
-    }
-
-    pub fn limits(&self) -> (f64, f64) {
-        (self.min, self.max)
-    }
-}
-
 pub struct Grade {
     value: u32,
     range: GradeRange,
@@ -117,17 +95,8 @@ impl Grade {
     pub fn new(value: u32, min: f64, max: f64) -> Self {
         Self {
             value,
-            range: GradeRange::new(min, max),
+            range: GradeRange { min, max },
         }
-    }
-
-    pub fn ref_array(&self) -> [f64; 4] {
-        [
-            self.value as f64,
-            self.range.min,
-            self.range.max,
-            self.range.min / self.range.max,
-        ]
     }
 
     pub fn value(&self) -> u32 {
@@ -141,22 +110,26 @@ impl Grade {
     pub fn max(&self) -> f64 {
         self.range.max
     }
+
+    pub fn pct(&self, total: f64) -> f64 {
+        round_dp(self.range.min / total, 2)
+    }
 }
 
 // Grading Calculator
 #[derive(Debug, Clone)]
 pub struct GradeCalculator {
-    pub points: u32,
+    pub total_points: u32,
     pub scale: GradeScale,
-    pub half: bool,
+    pub half_steps: bool,
 }
 
 impl Default for GradeCalculator {
     fn default() -> Self {
         Self {
-            points: 100,
+            total_points: 100,
             scale: GradeScale::IHK,
-            half: false,
+            half_steps: false,
         }
     }
 }
@@ -166,9 +139,10 @@ impl GradeCalculator {
         Self::default()
     }
 
-    pub fn points(&mut self, points: u32) -> &mut Self {
+    // todo: rename to total
+    pub fn total(&mut self, points: u32) -> &mut Self {
         //println!("Set max points to {}", points);
-        self.points = points;
+        self.total_points = points;
         self
     }
 
@@ -178,8 +152,25 @@ impl GradeCalculator {
         self
     }
 
-    pub fn toggle_half(&mut self) {
-        self.half = !self.half
+    pub fn toggle_steps(&mut self) {
+        self.half_steps = !self.half_steps
+    }
+
+    // get the min points for a grade
+    pub fn min_for(&self, grade: u32) -> Option<f64> {
+        let scale_values = self.scale.values();
+        match scale_values
+            .iter()
+            .find(|&&(x, _)| x == grade as u8)
+            .copied()
+        {
+            Some((_, pct)) => Some(self.calc_points_from_percentage(pct)),
+            None => None,
+        }
+    }
+
+    fn calc_points_from_percentage(&self, pct: f64) -> f64 {
+        (pct * self.total_points as f64).round()
     }
 
     pub fn calc(&self) -> Vec<Grade> {
@@ -195,12 +186,12 @@ impl GradeCalculator {
                 scale_values[i - 1].1
             };
 
-            let min_points = (min_percentage * self.points as f64).round();
+            let min_points = self.calc_points_from_percentage(min_percentage);
             let max_points = if i == 0 {
-                self.points as f64
+                self.total_points as f64
             } else {
-                let sub = if self.half { 0.5 } else { 1.0 };
-                (max_percentage * self.points as f64).round() - sub
+                let sub = if self.half_steps { 0.5 } else { 1.0 };
+                self.calc_points_from_percentage(max_percentage) - sub
             };
 
             grades.push(Grade::new(grade as u32, min_points, max_points));

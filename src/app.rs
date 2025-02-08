@@ -11,10 +11,9 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::fields::NumberInputField;
 use crate::grade::*;
 use crate::helpers::round_dp;
-use crate::ui::{render_help, GradeTable};
+use crate::ui::{render_help, GradeTable, NumberInputField};
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
@@ -26,25 +25,23 @@ pub enum AppState {
 
 pub struct App {
     state: AppState,
+    calculator: GradeCalculator,
     table: GradeTable,
     point_edit_field: NumberInputField,
-    data: GradeCalculator,
 }
 
 impl App {
     pub fn new() -> Self {
-        let data = GradeCalculator::default();
         Self {
             state: AppState::Running,
-            table: GradeTable::new(data.calc()),
+            calculator: GradeCalculator::new(),
+            table: GradeTable::new(),
             point_edit_field: NumberInputField::new(),
-            data,
         }
     }
 
     pub fn set_points(&mut self, points: u32) {
-        self.data.points = points;
-        self.update_table();
+        self.calculator.total_points = points;
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -92,11 +89,17 @@ impl App {
         .areas(main_area);
 
         // self.render_header(header_area, frame.buffer_mut());
-        let text = if self.state == AppState::RunningShowHelp { format!(" HELP ") }
-        else { format!(" {} ", self.data.scale.text()) };
+        let text = if self.state == AppState::RunningShowHelp {
+            format!(" HELP ")
+        } else {
+            format!(" {} ", self.calculator.scale.text())
+        };
 
-        let color = if self.state == AppState::RunningShowHelp { Color::Magenta }
-            else { scale_color(&self.data.scale) };
+        let color = if self.state == AppState::RunningShowHelp {
+            Color::Magenta
+        } else {
+            scale_color(&self.calculator.scale)
+        };
 
         let [scale_identifier_area, input_area, version_area] = Layout::horizontal([
             Constraint::Min(text.len() as u16),
@@ -136,11 +139,11 @@ impl App {
             frame.render_widget(Paragraph::new("").style(bar_style), input_area);
         }
 
-        
         if self.state == AppState::RunningShowHelp {
             render_help(table_area, frame.buffer_mut());
         } else {
-            self.table.render(table_area, frame.buffer_mut());
+            self.table
+                .render(table_area, frame.buffer_mut(), &self.calculator.calc());
         }
     }
 
@@ -164,16 +167,21 @@ impl App {
                 KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
                 KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
                 KeyCode::Char('L') => self.change_scale(GradeScale::LINEAR),
-                KeyCode::Char('C') => self.change_scale(self.data.scale.to_custom()),
+                KeyCode::Char('C') => self.change_scale(self.calculator.scale.to_custom()),
 
                 KeyCode::PageUp | KeyCode::Char('+') => {
-                    if self.data.scale.is_custom() {
+                    if self.calculator.scale.is_custom() {
                         match self.table.selected() {
                             Some(i) => {
                                 // get current min point
-                                if let Some(min) = self.table.selected_min() {
-                                    self.data.scale.change(i, round_dp((min + 1.0) / self.data.points as f64,2));                                   
-                                    self.update_table();
+                                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
+                                    self.calculator.scale.change(
+                                        i,
+                                        round_dp(
+                                            (min + 1.0) / self.calculator.total_points as f64,
+                                            2,
+                                        ),
+                                    );
                                 };
                             }
                             None => {}
@@ -184,13 +192,18 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
                 KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
                 KeyCode::PageDown | KeyCode::Char('-') => {
-                    if self.data.scale.is_custom() {
+                    if self.calculator.scale.is_custom() {
                         match self.table.selected() {
                             Some(i) => {
                                 // get current min point
-                                if let Some(min) = self.table.selected_min() {
-                                    self.data.scale.change(i, round_dp((min - 1.0) / self.data.points as f64,2));                                   
-                                    self.update_table();
+                                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
+                                    self.calculator.scale.change(
+                                        i,
+                                        round_dp(
+                                            (min - 1.0) / self.calculator.total_points as f64,
+                                            2,
+                                        ),
+                                    );
                                 };
                             }
                             None => {}
@@ -199,8 +212,7 @@ impl App {
                 }
 
                 KeyCode::Char('.') => {
-                    self.data.toggle_half();
-                    self.update_table();
+                    self.calculator.toggle_steps();
                 }
                 KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
@@ -232,14 +244,9 @@ impl App {
         self.state = AppState::Exited
     }
 
-    fn update_table(&mut self) {
-        self.table.update(self.data.calc());
-    }
-
     fn change_scale(&mut self, scale: GradeScale) {
         self.table.set_selected_row_color(scale_color(&scale));
-        self.data.scale = scale;
-        self.update_table();
+        self.calculator.scale = scale;
     }
 }
 
