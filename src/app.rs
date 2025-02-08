@@ -1,24 +1,19 @@
-use ratatui::layout::Flex;
-use ratatui::widgets::BorderType;
-use ratatui::widgets::Clear;
-
 use std::io;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 
 use ratatui::prelude::*;
 use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
     style::Stylize,
     symbols::border,
     text::Line,
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block,  Paragraph},
     DefaultTerminal, Frame,
 };
 
 use crate::grade::*;
 use crate::table::GradeTable;
+
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
@@ -88,8 +83,8 @@ impl App {
         ])
         .areas(inner);
 
-        let [table_area, _] =
-            Layout::horizontal([Constraint::Max(80), Constraint::Fill(1)]).areas(main_area);
+        let [_, table_area, _] =
+            Layout::horizontal([Constraint::Fill(1), Constraint::Max(80), Constraint::Fill(1)]).areas(main_area);
 
         // self.render_header(header_area, frame.buffer_mut());
         let text = format!(" {} ", self.data.scale.text());
