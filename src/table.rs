@@ -10,7 +10,7 @@ struct Theme {
     header_bg: Color,
     header_fg: Color,
     row_fg: Color,
-    selected_row_style_fg: Color,
+     selected_row_style_fg: Color,
     normal_row_color: Color,
     alt_row_color: Color,
 }
@@ -31,7 +31,7 @@ impl Default for Theme {
 pub struct GradeTable {
     state: TableState,
     data: Vec<Grade>,
-    colors: Theme
+    pub colors: Theme
 }
 
 
@@ -46,6 +46,10 @@ impl GradeTable {
 
     pub fn update(&mut self, data: Vec<Grade>) {
         self.data = data
+    }
+
+    pub fn set_selected_row_color(&mut self, color: Color) {
+        self.colors.selected_row_style_fg = color;
     }
 
     pub fn next_row(&mut self) {

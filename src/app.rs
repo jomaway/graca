@@ -187,6 +187,7 @@ impl App {
     }
 
     fn change_scale(&mut self, scale: GradeScale) {
+        self.table.set_selected_row_color(scale_color(&scale));
         self.data.scale = scale;
         self.table.update(self.data.calc());
     }
