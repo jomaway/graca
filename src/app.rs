@@ -11,6 +11,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
+use crate::export::CsvExporter;
 use crate::grade::*;
 use crate::helpers::round_dp;
 use crate::ui::{render_help, GradeTable, NumberInputField};
@@ -26,15 +27,19 @@ pub enum AppState {
 pub struct App {
     state: AppState,
     calculator: GradeCalculator,
+    exporter: CsvExporter,
     table: GradeTable,
     point_edit_field: NumberInputField,
 }
 
 impl App {
     pub fn new() -> Self {
+        let output = "/home/jonas/RDF/graca.csv";
+        
         Self {
             state: AppState::Running,
             calculator: GradeCalculator::new(),
+            exporter: CsvExporter::new(output),
             table: GradeTable::new(),
             point_edit_field: NumberInputField::new(),
         }
@@ -163,12 +168,15 @@ impl App {
         match self.state {
             AppState::Running => match key_event.code {
                 KeyCode::Char('p') => self.state = AppState::RunningEditPoints,
+                KeyCode::Char('.') => self.calculator.toggle_steps(),
 
                 KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
                 KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
                 KeyCode::Char('L') => self.change_scale(GradeScale::LINEAR),
                 KeyCode::Char('C') => self.change_scale(self.calculator.scale.to_custom()),
 
+                KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
+                KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
                 KeyCode::PageUp | KeyCode::Char('+') => {
                     if self.calculator.scale.is_custom() {
                         match self.table.selected() {
@@ -188,9 +196,7 @@ impl App {
                         }
                     }
                 }
-
-                KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
-                KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
+                
                 KeyCode::PageDown | KeyCode::Char('-') => {
                     if self.calculator.scale.is_custom() {
                         match self.table.selected() {
@@ -211,9 +217,8 @@ impl App {
                     }
                 }
 
-                KeyCode::Char('.') => {
-                    self.calculator.toggle_steps();
-                }
+                KeyCode::Char('e') => self.exporter.export(&self.calculator.calc()).expect("Exported file."),
+                
                 KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
                 _ => {}

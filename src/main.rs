@@ -12,6 +12,7 @@ pub mod app;
 mod grade;
 mod helpers;
 mod ui;
+mod export;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
