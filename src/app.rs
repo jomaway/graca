@@ -160,8 +160,6 @@ impl App {
                     todo!()
                 }
                 KeyCode::Char('q') => self.exit(),
-                KeyCode::Esc | KeyCode::Enter => self.state = AppState::Running,
-
                 _ => {}
             },
             AppState::RunningEditPoints => match key_event.code {
@@ -175,7 +173,6 @@ impl App {
                     self.set_points(points);
                     self.state = AppState::Running;
                 }
-
                 _ => {}
             },
             AppState::RunningShowHelp => todo!(),
