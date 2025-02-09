@@ -4,6 +4,7 @@ TUI powered calculator for point -> grade mappings in exams.
 
 supports only the german grading system with grades from 1 to 6.
 
+![Screenshot of the app](screenshot.png)
 
 ## Development
 
