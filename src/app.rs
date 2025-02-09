@@ -11,7 +11,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::export::CsvExporter;
+use crate::export::{CsvExporter, Exporter};
 use crate::grade::*;
 use crate::helpers::round_dp;
 use crate::ui::{render_help, GradeTable, NumberInputField};
@@ -35,7 +35,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let output = "/home/jonas/RDF/graca.csv";
-        
+
         Self {
             state: AppState::Running,
             calculator: GradeCalculator::new(),
@@ -196,7 +196,7 @@ impl App {
                         }
                     }
                 }
-                
+
                 KeyCode::PageDown | KeyCode::Char('-') => {
                     if self.calculator.scale.is_custom() {
                         match self.table.selected() {
@@ -217,8 +217,11 @@ impl App {
                     }
                 }
 
-                KeyCode::Char('e') => self.exporter.export(&self.calculator.calc()).expect("Exported file."),
-                
+                KeyCode::Char('e') => self
+                    .exporter
+                    .export(&self.calculator.calc())
+                    .expect("Exported file."),
+
                 KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
