@@ -7,14 +7,17 @@ use ratatui::crossterm::terminal::enable_raw_mode;
 use ratatui::{backend::CrosstermBackend, Terminal};
 
 pub use app::App;
+use cli::{Args, Parser};
 
 pub mod app;
+mod cli;
 mod grade;
 mod helpers;
 mod ui;
 mod export;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -24,6 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // create app and run it
     let mut app = App::new();
+    app.set_points(args.points);
     let _res = app.run(&mut terminal);
 
     // restore terminal
