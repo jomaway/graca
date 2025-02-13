@@ -3,6 +3,7 @@ use std::io;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 
 use ratatui::prelude::*;
+use ratatui::widgets::Clear;
 use ratatui::{
     style::Stylize,
     symbols::border,
@@ -11,37 +12,39 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::export::{CsvExporter, Exporter, ExcelExporter};
+use crate::export::{CsvExporter, ExcelExporter, Exporter};
 use crate::grade::*;
 use crate::helpers::round_dp;
-use crate::ui::{render_help, GradeTable, NumberInputField};
+use crate::ui::{popup_area, render_help, ExportModal, GradeTable, NumberInputField};
 
 #[derive(Debug, PartialEq)]
 pub enum AppState {
     Running,
     RunningEditPoints,
     RunningShowHelp,
+    Exporting,
     Exited,
 }
+
+
+const OUTPUT_PATH: &'static str = "/home/jonas/RDF/graca";
 
 pub struct App {
     state: AppState,
     calculator: GradeCalculator,
-    exporter: ExcelExporter,
     table: GradeTable,
+    modal: ExportModal,
     point_edit_field: NumberInputField,
 }
 
 impl App {
     pub fn new() -> Self {
-        let output = "/home/jonas/RDF/graca.csv";
-        let output2 = "/home/jonas/RDF/graca.xlsx";
 
         Self {
             state: AppState::Running,
             calculator: GradeCalculator::new(),
-            exporter: ExcelExporter::new(output2),
             table: GradeTable::new(),
+            modal: ExportModal::new(),
             point_edit_field: NumberInputField::new(),
         }
     }
@@ -151,6 +154,13 @@ impl App {
             self.table
                 .render(table_area, frame.buffer_mut(), &self.calculator.calc());
         }
+
+        if self.state == AppState::Exporting {
+            let modal_area = popup_area(area, 60, 20);
+
+            frame.render_widget(Clear, modal_area);
+            self.modal.render(modal_area, frame.buffer_mut());
+        }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -218,11 +228,7 @@ impl App {
                     }
                 }
 
-                KeyCode::Char('e') => self
-                    .exporter
-                    .export(&self.calculator.calc())
-                    .expect("Exported file."),
-
+                KeyCode::Char('e') => self.state = AppState::Exporting,
                 KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
@@ -243,6 +249,23 @@ impl App {
             AppState::RunningShowHelp => match key_event.code {
                 KeyCode::Esc => self.state = AppState::Running,
                 KeyCode::Char('q') => self.exit(),
+                _ => {}
+            },
+            AppState::Exporting => match key_event.code {
+                KeyCode::Esc => self.state = AppState::Running,
+                KeyCode::Up => self.modal.list_state.select(Some(0)),
+                KeyCode::Down => self.modal.list_state.select(Some(1)),
+                KeyCode::Enter => {
+                    if let Some(selected) = self.modal.list_state.selected() {
+                        let data = self.calculator.calc();
+                        if 0 == selected {
+                            CsvExporter::new(OUTPUT_PATH).export(&data).expect("Export csv file.");
+                        } else if 1 == selected {
+                            ExcelExporter::new(OUTPUT_PATH).export(&data).expect("Export excel file.");
+                        }
+                    }
+                    self.state = AppState::Running;
+                }
                 _ => {}
             },
             AppState::Exited => {}

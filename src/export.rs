@@ -55,20 +55,20 @@ pub trait Exporter {
 
 #[derive(Debug, Default)]
 pub struct CsvExporter {
-    file: String,
+    path: String,
 }
 
 impl CsvExporter {
     pub fn new(output: &str) -> Self {
         CsvExporter {
-            file: output.into(),
+            path: output.into(),
         }
     }
 }
 
 impl Exporter for CsvExporter {
     fn export(&self, data: &Vec<Grade>) -> Result<(), ExportError> {
-        let mut wtr = csv::Writer::from_path(&self.file)?;
+        let mut wtr = csv::Writer::from_path(format!("{}.csv", self.path))?;
 
         for grade in data.into_iter() {
             wtr.serialize((
@@ -89,13 +89,13 @@ impl Exporter for CsvExporter {
 
 #[derive(Debug, Default)]
 pub struct ExcelExporter {
-    file: String,
+    path: String,
 }
 
 impl ExcelExporter {
     pub fn new(output: &str) -> Self {
         ExcelExporter {
-            file: output.into(),
+            path: output.into(),
         }
     }
 }
@@ -125,7 +125,7 @@ impl Exporter for ExcelExporter {
             worksheet.write(idx+1,3, grade.pct(data[0].max()).to_string())?;
         }
 
-        workbook.save(self.file.clone())?;
+        workbook.save(format!("{}.xlsx", self.path))?;
 
         Ok(())
     }

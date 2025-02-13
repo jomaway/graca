@@ -1,7 +1,8 @@
-use ratatui::layout::{Alignment, Constraint};
+use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
+use ratatui::style::palette::tailwind::SLATE;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget};
+use ratatui::widgets::{Block, Borders, Cell, HighlightSpacing, List, ListItem, ListState, Paragraph, Row, Table, Widget};
 use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{StatefulWidget, TableState},
@@ -278,4 +279,58 @@ impl NumberInputField {
         self.reset_cursor();
         number
     }
+}
+
+
+pub struct ExportModal
+{
+    filename: String,
+    pub list_state: ListState,
+}
+
+const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).fg(Color::White).add_modifier(Modifier::BOLD);
+
+impl ExportModal
+{
+    pub fn new() -> Self {
+        let mut modal = Self {
+            filename: String::new(),
+            list_state: ListState::default(),
+        };
+        modal.list_state.select(Some(0));
+        modal
+    }
+
+    pub fn render(
+        &mut self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+    ) {
+        let block = Block::bordered().title("Export").on_magenta().fg(Color::Black);
+
+        let inner = block.inner(area);
+        block.render(area, buf);
+        self.render_list(inner, buf);
+    }
+
+    fn render_list(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+        let items: Vec<ListItem> = vec![ListItem::new("CSV"), ListItem::new("Excel")];
+        
+        let list = List::new(items)
+        .highlight_style(SELECTED_STYLE)
+        .highlight_symbol(">")
+        .highlight_spacing(HighlightSpacing::Always);
+
+        StatefulWidget::render(list, area, buf, &mut self.list_state); 
+    }
+}
+
+
+/// helper function to create a centered rect using up certain percentage of the available rect `r`
+pub fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
+    let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
+    let [area] = vertical.areas(area);
+    let [area] = horizontal.areas(area);
+    area
 }
