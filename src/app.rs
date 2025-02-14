@@ -46,7 +46,7 @@ impl App {
             table: GradeTable::new(),
             modal: ExportModal::new(),
             point_edit_field: NumberInputField::new(),
-            status_msg: None
+            status_msg: None,
         }
     }
 
@@ -63,6 +63,11 @@ impl App {
 
     pub fn set_points(&mut self, points: u32) {
         self.calculator.total_points = points;
+    }
+
+    fn change_scale(&mut self, scale: GradeScale) {
+        self.table.set_selected_row_color(scale_color(&scale));
+        self.calculator.scale = scale;
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -123,15 +128,14 @@ impl App {
             scale_color(&self.calculator.scale)
         };
 
-        let [scale_identifier_area, input_area, version_area] = Layout::horizontal([
+        let [identifier_area, input_area, version_area] = Layout::horizontal([
             Constraint::Min(text.len() as u16),
             Constraint::Percentage(100),
             Constraint::Length(12),
         ])
         .areas(header_area);
 
-        let scale_identifier =
-            Paragraph::new(text).style(Style::default().fg(Color::Black).bg(color));
+        let identifier = Paragraph::new(text).style(Style::default().fg(Color::Black).bg(color));
 
         let bar_style = Style::default().bg(Color::Rgb(60, 56, 54));
 
@@ -139,7 +143,7 @@ impl App {
             .right_aligned()
             .style(bar_style);
 
-        frame.render_widget(scale_identifier, scale_identifier_area);
+        frame.render_widget(identifier, identifier_area);
         frame.render_widget(version, version_area);
 
         if let Some(msg) = &self.status_msg {
@@ -274,40 +278,48 @@ impl App {
                 KeyCode::Esc => {
                     self.modal.reset();
                     self.state = AppState::Running
-                },
+                }
                 KeyCode::Up => self.modal.list_state.select(Some(0)),
                 KeyCode::Down => self.modal.list_state.select(Some(1)),
                 KeyCode::Char(c) => {
                     if self.modal.is_enter_filename_state() {
                         self.modal.filename_field.enter_char(c);
                     }
-                },
+                }
                 KeyCode::Backspace => {
                     if self.modal.is_enter_filename_state() {
                         self.modal.filename_field.delete_char();
                     }
-                } 
+                }
                 KeyCode::Enter => {
-                    if !self.modal.is_enter_filename_state() { self.modal.next(); }
-                    else {
+                    if !self.modal.is_enter_filename_state() {
+                        self.modal.next();
+                    } else {
                         if let Some(selected) = self.modal.list_state.selected() {
                             let data = self.calculator.calc();
                             let filename = self.modal.get_filename();
                             if filename.is_empty() {
-                                self.status_msg = Some(String::from("Empy file name, please enter a valid name."));
+                                self.status_msg = Some(String::from(
+                                    "Empy file name, please enter a valid name.",
+                                ));
                                 return;
                             }
-                            let output_path = get_output_file_path(&self.config, self.modal.get_filename());
+                            let output_path =
+                                get_output_file_path(&self.config, self.modal.get_filename());
                             if 0 == selected {
                                 CsvExporter::new(&output_path)
                                     .export(&data)
                                     .expect("Export csv file.");
-                                self.status_msg = Some(String::from(format!("Exported file at {output_path}.csv")));
+                                self.status_msg = Some(String::from(format!(
+                                    "Exported file at {output_path}.csv"
+                                )));
                             } else if 1 == selected {
                                 ExcelExporter::new(&output_path)
                                     .export(&data)
                                     .expect("Export excel file.");
-                                self.status_msg = Some(String::from(format!("Exported file at {output_path}.xlsx")));
+                                self.status_msg = Some(String::from(format!(
+                                    "Exported file at {output_path}.xlsx"
+                                )));
                             }
                         }
                         self.modal.reset();
@@ -324,10 +336,7 @@ impl App {
         self.state = AppState::Exited
     }
 
-    fn change_scale(&mut self, scale: GradeScale) {
-        self.table.set_selected_row_color(scale_color(&scale));
-        self.calculator.scale = scale;
-    }
+    
 }
 
 /// helper function to get scale colors

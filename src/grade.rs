@@ -141,15 +141,12 @@ impl GradeCalculator {
         Self::default()
     }
 
-    // todo: rename to total
-    pub fn total(&mut self, points: u32) -> &mut Self {
-        //println!("Set max points to {}", points);
+    pub fn total(mut self, points: u32) -> Self {
         self.total_points = points;
         self
     }
 
-    pub fn scale(&mut self, scale: GradeScale) -> &mut Self {
-        //println!("Use {:?} algorithm", algorithm);
+    pub fn scale(mut self, scale: GradeScale) -> Self {
         self.scale = scale;
         self
     }
