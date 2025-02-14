@@ -40,7 +40,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         Self {
-            config: AppConfig::read_config().expect("Config"),
+            config: AppConfig::new(),
             state: AppState::Running,
             calculator: GradeCalculator::new(),
             table: GradeTable::new(),
@@ -48,6 +48,17 @@ impl App {
             point_edit_field: NumberInputField::new(),
             status_msg: None
         }
+    }
+
+    pub fn with_config(mut self, config: AppConfig) -> Self {
+        self.change_scale(config.get_default_scale());
+        self.config = config;
+        self
+    }
+
+    pub fn with_points(mut self, points: u32) -> Self {
+        self.set_points(points);
+        self
     }
 
     pub fn set_points(&mut self, points: u32) {
@@ -281,6 +292,11 @@ impl App {
                     else {
                         if let Some(selected) = self.modal.list_state.selected() {
                             let data = self.calculator.calc();
+                            let filename = self.modal.get_filename();
+                            if filename.is_empty() {
+                                self.status_msg = Some(String::from("Empy file name, please enter a valid name."));
+                                return;
+                            }
                             let output_path = get_output_file_path(&self.config, self.modal.get_filename());
                             if 0 == selected {
                                 CsvExporter::new(&output_path)

@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use crate::helpers::round_dp;
 
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
@@ -21,7 +23,7 @@ const LINEAR_BOUNDARIES: [(u8, f64); 6] = [
     (6, 0.0),
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum GradeScale {
     IHK,
     TECHNIKER,

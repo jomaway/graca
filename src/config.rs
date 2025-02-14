@@ -4,10 +4,13 @@ use color_eyre::eyre;
 use directories::{ProjectDirs, UserDirs};
 use serde::Deserialize;
 
+use crate::grade::GradeScale;
+
 #[derive(Debug, Deserialize)]
 pub struct AppConfig
 {
     export_path: PathBuf,
+    default_scale: GradeScale
 }
 
 impl AppConfig
@@ -15,6 +18,7 @@ impl AppConfig
     pub fn new() -> AppConfig {
         Self {
             export_path: get_document_dir().expect("Document dir not found."),
+            default_scale: GradeScale::IHK,
         }
     }
 
@@ -35,7 +39,11 @@ impl AppConfig
     }
 
     pub fn get_export_path(&self) -> &PathBuf {
-        return &self.export_path
+        &self.export_path
+    }
+
+    pub fn get_default_scale(&self) -> GradeScale {
+        self.default_scale.clone()
     }
 
 }

@@ -1,5 +1,6 @@
 use std::io;
 
+use config::AppConfig;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::disable_raw_mode;
 use ratatui::crossterm::terminal::enable_raw_mode;
@@ -18,6 +19,7 @@ mod helpers;
 mod ui;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // parse args.
     let args = Args::parse();
     // setup terminal
     enable_raw_mode()?;
@@ -27,8 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let mut app = App::new();
-    app.set_points(args.points);
+    let mut app = if let Ok(config) = AppConfig::read_config() {
+        App::new().with_config(config).with_points(args.points)
+    } else {
+        App::new().with_points(args.points)
+    };
     let _res = app.run(&mut terminal);
 
     // restore terminal
