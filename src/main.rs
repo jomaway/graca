@@ -11,10 +11,11 @@ use cli::{Args, Parser};
 
 pub mod app;
 mod cli;
+mod config;
+mod export;
 mod grade;
 mod helpers;
 mod ui;
-mod export;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -37,6 +38,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         crossterm::terminal::LeaveAlternateScreen
     )?;
     terminal.show_cursor()?;
-
     Ok(())
 }

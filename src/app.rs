@@ -12,6 +12,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
+use crate::config::AppConfig;
 use crate::export::{CsvExporter, ExcelExporter, Exporter};
 use crate::grade::*;
 use crate::helpers::round_dp;
@@ -26,10 +27,8 @@ pub enum AppState {
     Exited,
 }
 
-
-const OUTPUT_PATH: &'static str = "/home/jonas/RDF/graca";
-
 pub struct App {
+    config: AppConfig,
     state: AppState,
     calculator: GradeCalculator,
     table: GradeTable,
@@ -39,8 +38,8 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-
         Self {
+            config: AppConfig::read_config().expect("Config"),
             state: AppState::Running,
             calculator: GradeCalculator::new(),
             table: GradeTable::new(),
@@ -82,11 +81,12 @@ impl App {
         frame.render_widget(block, area);
 
         // main layout.
-        let [header_area, _, main_area, _] = Layout::vertical([
+        let [header_area, _, main_area, _, status_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(21),
             Constraint::Fill(1),
+            Constraint::Length(1),
         ])
         .areas(inner);
 
@@ -128,6 +128,9 @@ impl App {
 
         frame.render_widget(scale_identifier, scale_identifier_area);
         frame.render_widget(version, version_area);
+
+        let status = Paragraph::new(get_output_file_path(&self.config));
+        frame.render_widget(status, status_area);
 
         if self.state == AppState::RunningEditPoints {
             let input = Paragraph::new(format!(" max:{}", self.point_edit_field.get_input()))
@@ -258,10 +261,15 @@ impl App {
                 KeyCode::Enter => {
                     if let Some(selected) = self.modal.list_state.selected() {
                         let data = self.calculator.calc();
+                        let output_path = get_output_file_path(&self.config);
                         if 0 == selected {
-                            CsvExporter::new(OUTPUT_PATH).export(&data).expect("Export csv file.");
+                            CsvExporter::new(&output_path)
+                                .export(&data)
+                                .expect("Export csv file.");
                         } else if 1 == selected {
-                            ExcelExporter::new(OUTPUT_PATH).export(&data).expect("Export excel file.");
+                            ExcelExporter::new(&output_path)
+                                .export(&data)
+                                .expect("Export excel file.");
                         }
                     }
                     self.state = AppState::Running;
@@ -290,4 +298,13 @@ fn scale_color(scale: &GradeScale) -> Color {
         GradeScale::LINEAR => Color::Green,
         GradeScale::Custom(_) => Color::LightRed,
     }
+}
+
+/// helper function to get output path without file extension
+fn get_output_file_path(config: &AppConfig) -> String {
+    let mut document_path = config.get_export_path().clone();
+    let filename = "graca_output";
+    document_path.push(filename);
+    let output_path = document_path.to_str().unwrap();
+    output_path.to_owned()
 }
