@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use color_eyre::eyre::{self, WrapErr};
+use color_eyre::eyre;
 use directories::{ProjectDirs, UserDirs};
 use serde::Deserialize;
 
@@ -37,7 +37,7 @@ impl AppConfig
     pub fn get_export_path(&self) -> &PathBuf {
         return &self.export_path
     }
-    
+
 }
 
 pub fn get_data_dir() -> eyre::Result<PathBuf> {

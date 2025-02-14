@@ -2,7 +2,10 @@ use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::palette::tailwind::SLATE;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Borders, Cell, HighlightSpacing, List, ListItem, ListState, Paragraph, Row, Table, Widget};
+use ratatui::widgets::{
+    Block, Borders, Cell, HighlightSpacing, List, ListItem, ListState, Paragraph, Row, Table,
+    Widget,
+};
 use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{StatefulWidget, TableState},
@@ -210,6 +213,11 @@ impl NumberInputField {
         self.character_index
     }
 
+    pub fn clear(&mut self) {
+        self.input.clear();
+        self.character_index = 0;
+    }
+
     pub fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.character_index.saturating_sub(1);
         self.character_index = self.clamp_cursor(cursor_moved_left);
@@ -222,11 +230,9 @@ impl NumberInputField {
 
     pub fn enter_char(&mut self, new_char: char) {
         // add guard to max insert 9 digits, to not overflow u32.
-        if self.input.len() < 10 {
-            let index = self.byte_index();
-            self.input.insert(index, new_char);
-            self.move_cursor_right();
-        }
+        let index = self.byte_index();
+        self.input.insert(index, new_char);
+        self.move_cursor_right();
     }
 
     /// Returns the byte index based on the character position.
@@ -274,57 +280,102 @@ impl NumberInputField {
     /// return the input as number
     /// todo: split returning the value and converting to a number into seperate things.
     pub fn get_number(&mut self) -> u32 {
-        let number: u32 = self.input.parse().expect("Not a valid number");
+        let number: u32 = if self.input.len() < 10 {
+            self.input.parse().expect("Not a valid number")
+        } else {
+            100
+        };
         self.input.clear();
         self.reset_cursor();
         number
     }
 }
 
-
-pub struct ExportModal
-{
-    filename: String,
+#[derive(Debug, PartialEq)]
+pub enum ExportModalState {
+    ChooseExporter,
+    EnterFilename,
+}
+pub struct ExportModal {
+    state: ExportModalState,
     pub list_state: ListState,
+    pub filename_field: NumberInputField,
 }
 
-const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).fg(Color::White).add_modifier(Modifier::BOLD);
+const SELECTED_STYLE: Style = Style::new()
+    .bg(SLATE.c800)
+    .fg(Color::White)
+    .add_modifier(Modifier::BOLD);
 
-impl ExportModal
-{
+impl ExportModal {
     pub fn new() -> Self {
         let mut modal = Self {
-            filename: String::new(),
+            state: ExportModalState::ChooseExporter,
             list_state: ListState::default(),
+            filename_field: NumberInputField::new(),
         };
         modal.list_state.select(Some(0));
         modal
     }
 
-    pub fn render(
-        &mut self,
-        area: ratatui::prelude::Rect,
-        buf: &mut ratatui::prelude::Buffer,
-    ) {
-        let block = Block::bordered().title("Export").on_magenta().fg(Color::Black);
+    pub fn is_enter_filename_state(&self) -> bool {
+        self.state == ExportModalState::EnterFilename
+    }
+
+    pub fn next(&mut self) {
+        match self.state {
+            ExportModalState::ChooseExporter => self.state = ExportModalState::EnterFilename,
+            ExportModalState::EnterFilename => self.state = ExportModalState::ChooseExporter,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.state = ExportModalState::ChooseExporter;
+        self.filename_field.clear();
+    }
+
+    pub fn get_filename(&self) -> &str {
+        return self.filename_field.get_input()
+    }
+
+    pub fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+        let title = if self.state == ExportModalState::ChooseExporter {
+            format!(" Choose Exporter ... ")
+        } else {
+            format!(" Enter Filename ... ")
+        };
+
+        let block = Block::bordered().title(title).on_magenta().fg(Color::Black);
 
         let inner = block.inner(area);
         block.render(area, buf);
-        self.render_list(inner, buf);
+
+        match self.state {
+            ExportModalState::ChooseExporter => self.render_list(inner, buf),
+            ExportModalState::EnterFilename => self.render_filename_field(inner, buf),
+        }
     }
 
     fn render_list(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
         let items: Vec<ListItem> = vec![ListItem::new("CSV"), ListItem::new("Excel")];
-        
-        let list = List::new(items)
-        .highlight_style(SELECTED_STYLE)
-        .highlight_symbol(">")
-        .highlight_spacing(HighlightSpacing::Always);
 
-        StatefulWidget::render(list, area, buf, &mut self.list_state); 
+        let list = List::new(items)
+            .highlight_style(SELECTED_STYLE)
+            .highlight_symbol(">")
+            .highlight_spacing(HighlightSpacing::Always);
+
+        StatefulWidget::render(list, area, buf, &mut self.list_state);
+    }
+
+    fn render_filename_field(
+        &mut self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+    ) {
+        let input = Paragraph::new(format!("{}", self.filename_field.get_input()));
+        input.render(area, buf);
     }
 }
-
 
 /// helper function to create a centered rect using up certain percentage of the available rect `r`
 pub fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {

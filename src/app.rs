@@ -34,6 +34,7 @@ pub struct App {
     table: GradeTable,
     modal: ExportModal,
     point_edit_field: NumberInputField,
+    status_msg: Option<String>,
 }
 
 impl App {
@@ -45,6 +46,7 @@ impl App {
             table: GradeTable::new(),
             modal: ExportModal::new(),
             point_edit_field: NumberInputField::new(),
+            status_msg: None
         }
     }
 
@@ -129,8 +131,11 @@ impl App {
         frame.render_widget(scale_identifier, scale_identifier_area);
         frame.render_widget(version, version_area);
 
-        let status = Paragraph::new(get_output_file_path(&self.config));
-        frame.render_widget(status, status_area);
+        if let Some(msg) = &self.status_msg {
+            let status = Paragraph::new(format!("Status: {}", msg));
+
+            frame.render_widget(status, status_area);
+        }
 
         if self.state == AppState::RunningEditPoints {
             let input = Paragraph::new(format!(" max:{}", self.point_edit_field.get_input()))
@@ -255,24 +260,43 @@ impl App {
                 _ => {}
             },
             AppState::Exporting => match key_event.code {
-                KeyCode::Esc => self.state = AppState::Running,
+                KeyCode::Esc => {
+                    self.modal.reset();
+                    self.state = AppState::Running
+                },
                 KeyCode::Up => self.modal.list_state.select(Some(0)),
                 KeyCode::Down => self.modal.list_state.select(Some(1)),
-                KeyCode::Enter => {
-                    if let Some(selected) = self.modal.list_state.selected() {
-                        let data = self.calculator.calc();
-                        let output_path = get_output_file_path(&self.config);
-                        if 0 == selected {
-                            CsvExporter::new(&output_path)
-                                .export(&data)
-                                .expect("Export csv file.");
-                        } else if 1 == selected {
-                            ExcelExporter::new(&output_path)
-                                .export(&data)
-                                .expect("Export excel file.");
-                        }
+                KeyCode::Char(c) => {
+                    if self.modal.is_enter_filename_state() {
+                        self.modal.filename_field.enter_char(c);
                     }
-                    self.state = AppState::Running;
+                },
+                KeyCode::Backspace => {
+                    if self.modal.is_enter_filename_state() {
+                        self.modal.filename_field.delete_char();
+                    }
+                } 
+                KeyCode::Enter => {
+                    if !self.modal.is_enter_filename_state() { self.modal.next(); }
+                    else {
+                        if let Some(selected) = self.modal.list_state.selected() {
+                            let data = self.calculator.calc();
+                            let output_path = get_output_file_path(&self.config, self.modal.get_filename());
+                            if 0 == selected {
+                                CsvExporter::new(&output_path)
+                                    .export(&data)
+                                    .expect("Export csv file.");
+                                self.status_msg = Some(String::from(format!("Exported file at {output_path}.csv")));
+                            } else if 1 == selected {
+                                ExcelExporter::new(&output_path)
+                                    .export(&data)
+                                    .expect("Export excel file.");
+                                self.status_msg = Some(String::from(format!("Exported file at {output_path}.xlsx")));
+                            }
+                        }
+                        self.modal.reset();
+                        self.state = AppState::Running;
+                    }
                 }
                 _ => {}
             },
@@ -301,9 +325,8 @@ fn scale_color(scale: &GradeScale) -> Color {
 }
 
 /// helper function to get output path without file extension
-fn get_output_file_path(config: &AppConfig) -> String {
+fn get_output_file_path(config: &AppConfig, filename: &str) -> String {
     let mut document_path = config.get_export_path().clone();
-    let filename = "graca_output";
     document_path.push(filename);
     let output_path = document_path.to_str().unwrap();
     output_path.to_owned()
