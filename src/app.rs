@@ -1,7 +1,10 @@
 use std::io;
+use std::path::PathBuf;
 
+use color_eyre::eyre::eyre;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 
+use directories::UserDirs;
 use ratatui::prelude::*;
 use ratatui::widgets::Clear;
 use ratatui::{
@@ -279,11 +282,17 @@ impl App {
                     self.modal.reset();
                     self.state = AppState::Running
                 }
-                KeyCode::Up => self.modal.list_state.select(Some(0)),
                 KeyCode::Down => self.modal.list_state.select(Some(1)),
+                KeyCode::Up => self.modal.list_state.select(Some(0)),
                 KeyCode::Char(c) => {
                     if self.modal.is_enter_filename_state() {
                         self.modal.filename_field.enter_char(c);
+                    } else {
+                        match c {
+                            'j' => self.modal.list_state.select(Some(1)),
+                            'k' => self.modal.list_state.select(Some(0)),
+                            _ => {}
+                        }
                     }
                 }
                 KeyCode::Backspace => {
@@ -304,22 +313,31 @@ impl App {
                                 ));
                                 return;
                             }
-                            let output_path =
-                                get_output_file_path(&self.config, self.modal.get_filename());
-                            if 0 == selected {
-                                CsvExporter::new(&output_path)
-                                    .export(&data)
-                                    .expect("Export csv file.");
-                                self.status_msg = Some(String::from(format!(
-                                    "Exported file at {output_path}.csv"
-                                )));
-                            } else if 1 == selected {
-                                ExcelExporter::new(&output_path)
-                                    .export(&data)
-                                    .expect("Export excel file.");
-                                self.status_msg = Some(String::from(format!(
-                                    "Exported file at {output_path}.xlsx"
-                                )));
+
+                            if let Some(output_path) =
+                                create_output_file_path(&self.config, filename)
+                            {
+                                if 0 == selected {
+                                    match CsvExporter::new(&output_path).export(&data) {
+                                        Ok(()) => {
+                                            self.status_msg =
+                                                Some(format!("Exported file at {output_path}.csv"))
+                                        }
+                                        Err(e) => {
+                                            self.status_msg = Some(format!("Export Error: {e}"))
+                                        }
+                                    }
+                                } else if 1 == selected {
+                                    match ExcelExporter::new(&output_path).export(&data) {
+                                        Ok(()) => {
+                                            self.status_msg =
+                                                Some(format!("Exported file at {output_path}.csv"))
+                                        }
+                                        Err(e) => {
+                                            self.status_msg = Some(format!("Export Error: {e}"))
+                                        }
+                                    }
+                                }
                             }
                         }
                         self.modal.reset();
@@ -335,8 +353,6 @@ impl App {
     fn exit(&mut self) {
         self.state = AppState::Exited
     }
-
-    
 }
 
 /// helper function to get scale colors
@@ -350,9 +366,30 @@ fn scale_color(scale: &GradeScale) -> Color {
 }
 
 /// helper function to get output path without file extension
-fn get_output_file_path(config: &AppConfig, filename: &str) -> String {
-    let mut document_path = config.get_export_path().clone();
-    document_path.push(filename);
-    let output_path = document_path.to_str().unwrap();
-    output_path.to_owned()
+fn create_output_file_path(config: &AppConfig, filename: &str) -> Option<String> {
+    if filename.starts_with("/") {
+        // absolute path.
+        return Some(filename.to_owned());
+    } else if filename.starts_with("~") {
+        // home path
+        return expand_home(filename);
+    } else {
+        if let Some(path) = config.get_export_path() {
+            let mut path = path.to_owned();
+            path.push(filename);
+            if let Some(output_path) = path.to_str() {
+                return Some(output_path.to_owned());
+            }
+        }
+    }
+    None
+}
+
+fn expand_home(filename: &str) -> Option<String> {
+    if let Some(home_path) = UserDirs::new().and_then(|u| Some(u.home_dir().to_path_buf())) {
+        let expanded = filename.replacen("~", home_path.to_str()?, 1);
+        Some(expanded)
+    } else {
+        None
+    }
 }
