@@ -141,15 +141,15 @@ impl GradeCalculator {
         Self::default()
     }
 
-    pub fn total(mut self, points: u32) -> Self {
-        self.total_points = points;
-        self
-    }
+    // pub fn total(mut self, points: u32) -> Self {
+    //     self.total_points = points;
+    //     self
+    // }
 
-    pub fn scale(mut self, scale: GradeScale) -> Self {
-        self.scale = scale;
-        self
-    }
+    // pub fn scale(mut self, scale: GradeScale) -> Self {
+    //     self.scale = scale;
+    //     self
+    // }
 
     pub fn toggle_steps(&mut self) {
         self.half_steps = !self.half_steps

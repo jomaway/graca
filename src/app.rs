@@ -1,8 +1,5 @@
-use std::io;
-use std::path::PathBuf;
-
-use color_eyre::eyre::eyre;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use std::io;
 
 use directories::UserDirs;
 use ratatui::prelude::*;
@@ -14,6 +11,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
     DefaultTerminal, Frame,
 };
+use tracing::{error, info};
 
 use crate::config::AppConfig;
 use crate::export::{CsvExporter, ExcelExporter, Exporter};
@@ -320,20 +318,24 @@ impl App {
                                 if 0 == selected {
                                     match CsvExporter::new(&output_path).export(&data) {
                                         Ok(()) => {
+                                            info!("Exported file at {output_path}.csv");
                                             self.status_msg =
                                                 Some(format!("Exported file at {output_path}.csv"))
                                         }
                                         Err(e) => {
+                                            error!("Export: {e}");
                                             self.status_msg = Some(format!("Export Error: {e}"))
                                         }
                                     }
                                 } else if 1 == selected {
                                     match ExcelExporter::new(&output_path).export(&data) {
                                         Ok(()) => {
+                                            info!("Exported file at {output_path}.csv");
                                             self.status_msg =
                                                 Some(format!("Exported file at {output_path}.csv"))
                                         }
                                         Err(e) => {
+                                            error!("Export: {e}");
                                             self.status_msg = Some(format!("Export Error: {e}"))
                                         }
                                     }

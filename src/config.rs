@@ -2,9 +2,25 @@ use std::{fs, path::PathBuf};
 
 use color_eyre::eyre;
 use directories::{ProjectDirs, UserDirs};
+use lazy_static::lazy_static;
 use serde::Deserialize;
+use tracing::warn;
 
 use crate::grade::GradeScale;
+
+lazy_static! {
+    pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
+    pub static ref CONFIG_FOLDER: Option<PathBuf> =
+        std::env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
+            .ok()
+            .map(PathBuf::from);
+    pub static ref DATA_FOLDER: Option<PathBuf> =
+        std::env::var(format!("{}_DATA", PROJECT_NAME.clone()))
+            .ok()
+            .map(PathBuf::from);
+    pub static ref LOG_ENV: String = format!("{}_LOGLEVEL", PROJECT_NAME.clone());
+    pub static ref LOG_FILE: String = format!("{}.log", env!("CARGO_PKG_NAME"));
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
@@ -49,21 +65,26 @@ impl AppConfig {
     }
 }
 
-pub fn get_data_dir() -> eyre::Result<PathBuf> {
-    let directory = if let Ok(s) = std::env::var("GRACA_DATA") {
-        PathBuf::from(s)
-    } else if let Some(proj_dirs) = ProjectDirs::from("de", "jomaway", "graca") {
+fn project_directory() -> Option<ProjectDirs> {
+    ProjectDirs::from("de", "jomaway", env!("CARGO_PKG_NAME"))
+}
+
+pub fn get_data_dir() -> PathBuf {
+    let directory = if let Some(s) = DATA_FOLDER.clone() {
+        s
+    } else if let Some(proj_dirs) = project_directory() {
         proj_dirs.data_local_dir().to_path_buf()
     } else {
-        return Err(eyre::eyre!("Unable to find data directory for graca."));
+        warn!("Could not find local data dir.");
+        PathBuf::from(".").join(".data")
     };
-    Ok(directory)
+    directory
 }
 
 pub fn get_config_dir() -> eyre::Result<PathBuf> {
-    let directory = if let Ok(s) = std::env::var("GRACA_CONFIG") {
-        PathBuf::from(s)
-    } else if let Some(proj_dirs) = ProjectDirs::from("de", "jomaway", "graca") {
+    let directory = if let Some(s) = CONFIG_FOLDER.clone() {
+        s
+    } else if let Some(proj_dirs) = project_directory() {
         proj_dirs.config_local_dir().to_path_buf()
     } else {
         return Err(eyre::eyre!("Unable to find config directory for graca."));
