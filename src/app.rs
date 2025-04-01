@@ -1,40 +1,36 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::widgets::Block;
 use std::io;
+use strum::IntoEnumIterator;
+use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
-use directories::UserDirs;
 use ratatui::prelude::*;
-use ratatui::widgets::Clear;
-use ratatui::{
-    style::Stylize,
-    symbols::border,
-    text::Line,
-    widgets::{Block, Paragraph},
-    DefaultTerminal, Frame,
-};
-use tracing::{error, info};
+use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
+use tracing::debug;
 
+use crate::command::Commands;
 use crate::config::AppConfig;
-use crate::export::{CsvExporter, ExcelExporter, Exporter};
+use crate::export::export;
 use crate::grade::*;
-use crate::helpers::round_dp;
-use crate::ui::{popup_area, render_help, ExportModal, GradeTable, NumberInputField};
+use crate::grade_table::GradeTable;
+use crate::theme::THEME;
 
-#[derive(Debug, PartialEq)]
-pub enum AppState {
-    Running,
-    RunningEditPoints,
-    RunningShowHelp,
-    Exporting,
+#[derive(Debug, PartialEq, Eq)]
+pub enum AppMode {
+    View,
+    Command,
+    // Help,
     Exited,
 }
 
 pub struct App {
     config: AppConfig,
-    state: AppState,
+    // state: AppState,
+    mode: AppMode,
     calculator: GradeCalculator,
     table: GradeTable,
-    modal: ExportModal,
-    point_edit_field: NumberInputField,
+    input_field: Input,
     status_msg: Option<String>,
 }
 
@@ -42,11 +38,11 @@ impl App {
     pub fn new() -> Self {
         Self {
             config: AppConfig::new(),
-            state: AppState::Running,
+            // state: AppState::Running,
+            mode: AppMode::View,
             calculator: GradeCalculator::new(),
             table: GradeTable::new(),
-            modal: ExportModal::new(),
-            point_edit_field: NumberInputField::new(),
+            input_field: Input::default(),
             status_msg: None,
         }
     }
@@ -67,12 +63,12 @@ impl App {
     }
 
     fn change_scale(&mut self, scale: GradeScale) {
-        self.table.set_selected_row_color(scale_color(&scale));
+        self.table.set_accent_color(scale.color());
         self.calculator.scale = scale;
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        while self.state != AppState::Exited {
+        while self.mode != AppMode::Exited {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -82,33 +78,21 @@ impl App {
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
-        let instructions = Line::from(vec![
-            " Help ".into(),
-            "<F1>".magenta().bold(),
-            " Quit ".into(),
-            "<q> ".magenta().bold(),
-            " Set Points ".into(),
-            "<p>".blue().bold(),
-        ]);
-        let block = Block::bordered()
-            .title_bottom(instructions.centered())
-            .border_set(border::EMPTY);
-
-        // render block around everything else.
-        let inner = block.inner(area);
-
-        frame.render_widget(block, area);
-
         // main layout.
-        let [header_area, _, main_area, _, status_area] = Layout::vertical([
+        let [header_area, _, main_area, _, command_area, help_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(21),
             Constraint::Fill(1),
             Constraint::Length(1),
+            Constraint::Length(1),
         ])
-        .areas(inner);
+        .areas(area);
 
+        // HEADER
+        self.render_header_bar(header_area, frame.buffer_mut());
+
+        // MAIN AREA
         let [_, table_area, _] = Layout::horizontal([
             Constraint::Fill(1),
             Constraint::Max(80),
@@ -116,75 +100,74 @@ impl App {
         ])
         .areas(main_area);
 
-        // self.render_header(header_area, frame.buffer_mut());
-        let text = if self.state == AppState::RunningShowHelp {
-            format!(" HELP ")
-        } else {
-            format!(" {} ", self.calculator.scale.text())
-        };
+        self.table.update_data(self.calculator.calc());
+        self.table.render(table_area, frame.buffer_mut());
 
-        let color = if self.state == AppState::RunningShowHelp {
-            Color::Magenta
-        } else {
-            scale_color(&self.calculator.scale)
-        };
+        // BOTTOM
+        self.render_command_bar(command_area, frame.buffer_mut());
+        App::render_help_bar(help_area, frame.buffer_mut());
+    }
 
-        let [identifier_area, input_area, version_area] = Layout::horizontal([
+    fn render_header_bar(&self, area: Rect, buf: &mut Buffer) {
+        Block::default().style(THEME.bar_style).render(area, buf);
+
+        let text = format!(" {} ", self.calculator.scale.text());
+        let color = self.calculator.scale.color();
+
+        let [identifier_area, _, version_area] = Layout::horizontal([
             Constraint::Min(text.len() as u16),
             Constraint::Percentage(100),
             Constraint::Length(12),
         ])
-        .areas(header_area);
+        .areas(area);
 
         let identifier = Paragraph::new(text).style(Style::default().fg(Color::Black).bg(color));
+        let version = Paragraph::new("graca v0.1").right_aligned();
 
-        let bar_style = Style::default().bg(Color::Rgb(60, 56, 54));
+        identifier.render(identifier_area, buf);
+        version.render(version_area, buf);
+    }
 
-        let version = Paragraph::new("graca v0.1")
-            .right_aligned()
-            .style(bar_style);
-
-        frame.render_widget(identifier, identifier_area);
-        frame.render_widget(version, version_area);
-
-        if let Some(msg) = &self.status_msg {
-            let status = Paragraph::new(format!("Status: {}", msg));
-
-            frame.render_widget(status, status_area);
-        }
-
-        if self.state == AppState::RunningEditPoints {
-            let input = Paragraph::new(format!(" max:{}", self.point_edit_field.get_input()))
-                .style(bar_style.fg(Color::Yellow));
-
-            frame.render_widget(input, input_area);
-
-            // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
-            #[allow(clippy::cast_possible_truncation)]
-            frame.set_cursor_position(Position::new(
-                // Draw the cursor at the current position in the input field.
-                // This position is can be controlled via the left and right arrow key
-                // the plus 5 comes from the max: which is printed before.
-                input_area.x + self.point_edit_field.get_index() as u16 + 5,
-                input_area.y,
-            ))
+    fn render_command_bar(&self, area: Rect, buf: &mut Buffer) {
+        let text = if self.mode == AppMode::Command {
+            format!(">>> {}", self.input_field.value())
+        } else if let Some(msg) = &self.status_msg {
+            format!("Status: {}", msg)
         } else {
-            frame.render_widget(Paragraph::new("").style(bar_style), input_area);
-        }
+            "".into()
+        };
 
-        if self.state == AppState::RunningShowHelp {
-            render_help(table_area, frame.buffer_mut());
-        } else {
-            self.table
-                .render(table_area, frame.buffer_mut(), &self.calculator.calc());
-        }
+        Paragraph::new(text)
+            .style(THEME.bar_style)
+            .render(area, buf);
+    }
 
-        if self.state == AppState::Exporting {
-            let modal_area = popup_area(area, 60, 20);
+    fn render_help_bar(area: Rect, buf: &mut Buffer) {
+        let mut keys: Vec<(&str, &str, Color)> = GradeScale::iter()
+            .map(|s| (s.key_binding(), s.text(), s.color()))
+            .collect();
 
-            frame.render_widget(Clear, modal_area);
-            self.modal.render(modal_area, frame.buffer_mut());
-        }
+        keys.push(("Q", "Quit", Color::Magenta));
+
+        let spans: Vec<Span> = keys
+            .iter()
+            .flat_map(|(key, desc, color)| {
+                let key = Span::styled(
+                    format!(" {key} "),
+                    THEME.key_binding.key.bg(color.to_owned()),
+                );
+                let desc = Span::styled(
+                    format!(" {desc} "),
+                    THEME.key_binding.description.fg(color.to_owned()),
+                );
+                [key, desc]
+            })
+            .collect();
+
+        Line::from(spans)
+            .centered()
+            .style((Color::Indexed(236), Color::Indexed(232)))
+            .render(area, buf);
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -199,11 +182,65 @@ impl App {
         Ok(())
     }
 
+    fn leave_command_mode(&mut self) {
+        self.input_field.reset();
+        self.mode = AppMode::View;
+    }
+
+    fn enter_command_mode(&mut self) {
+        self.status_msg = None;
+        self.mode = AppMode::Command;
+    }
+
+    fn execute_command(&mut self) {
+        match Commands::parse(self.input_field.value()) {
+            Ok(Commands::SetMaxPoints(points)) => {
+                self.status_msg = Some(format!("set max points to {}:", points));
+                self.calculator.total_points = points
+            }
+            Ok(Commands::Export(path_buf)) => {
+                self.status_msg = Some(format!("export to{}", path_buf.display()));
+                match export(path_buf.as_path(), &self.calculator.calc()) {
+                    Ok(_) => {
+                        self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
+                    }
+                    Err(e) => self.status_msg = Some(e.msg()),
+                }
+            }
+            Err(msg) => self.status_msg = Some(msg),
+        }
+    }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match self.state {
-            AppState::Running => match key_event.code {
-                KeyCode::Char('p') => self.state = AppState::RunningEditPoints,
-                KeyCode::Char('.') => self.calculator.toggle_steps(),
+        // Terminate with CTRL+C
+        if key_event.modifiers == KeyModifiers::CONTROL {
+            if key_event.code == KeyCode::Char('c') {
+                debug!("Should exit");
+                self.exit();
+            }
+        }
+
+        match self.mode {
+            AppMode::Command => match key_event.code {
+                KeyCode::Esc => self.leave_command_mode(),
+                KeyCode::Enter => {
+                    self.execute_command();
+                    self.leave_command_mode();
+                }
+                _ => {
+                    self.input_field.handle_event(&Event::Key(key_event));
+                }
+            },
+            AppMode::View => match key_event.code {
+                KeyCode::Char(':') => self.enter_command_mode(),
+                KeyCode::Char('p') => {
+                    self.input_field = "p ".into();
+                    self.enter_command_mode();
+                }
+                KeyCode::Char('e') => {
+                    self.input_field = "e ".into();
+                    self.enter_command_mode();
+                }
 
                 KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
                 KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
@@ -212,186 +249,54 @@ impl App {
 
                 KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
                 KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
-                KeyCode::PageUp | KeyCode::Char('+') => {
-                    if self.calculator.scale.is_custom() {
-                        match self.table.selected() {
-                            Some(i) => {
-                                // get current min point
-                                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
-                                    self.calculator.scale.change(
-                                        i,
-                                        round_dp(
-                                            (min + 1.0) / self.calculator.total_points as f64,
-                                            2,
-                                        ),
-                                    );
-                                };
-                            }
-                            None => {}
-                        }
-                    }
-                }
+                KeyCode::Left | KeyCode::Char('h') => self.table.select_col_min(),
+                KeyCode::Right | KeyCode::Char('l') => self.table.select_col_max(),
+                KeyCode::Esc => self.table.state.select_column(None),
+                KeyCode::Char('.') => self.calculator.toggle_steps(),
+                KeyCode::PageUp | KeyCode::Char('+') => self.increase_points(),
+                KeyCode::PageDown | KeyCode::Char('-') => self.decrease_points(),
 
-                KeyCode::PageDown | KeyCode::Char('-') => {
-                    if self.calculator.scale.is_custom() {
-                        match self.table.selected() {
-                            Some(i) => {
-                                // get current min point
-                                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
-                                    self.calculator.scale.change(
-                                        i,
-                                        round_dp(
-                                            (min - 1.0) / self.calculator.total_points as f64,
-                                            2,
-                                        ),
-                                    );
-                                };
-                            }
-                            None => {}
-                        }
-                    }
-                }
-
-                KeyCode::Char('e') => self.state = AppState::Exporting,
-                KeyCode::F(1) => self.state = AppState::RunningShowHelp,
                 KeyCode::Char('q') => self.exit(),
                 _ => {}
             },
-            AppState::RunningEditPoints => match key_event.code {
-                KeyCode::Char(c) if c.is_digit(10) => self.point_edit_field.enter_char(c),
-                KeyCode::Backspace => self.point_edit_field.delete_char(),
-                KeyCode::Left => self.point_edit_field.move_cursor_left(),
-                KeyCode::Right => self.point_edit_field.move_cursor_right(),
-                KeyCode::Esc => self.state = AppState::Running,
-                KeyCode::Enter => {
-                    let points = self.point_edit_field.get_number();
-                    self.set_points(points);
-                    self.state = AppState::Running;
-                }
-                _ => {}
-            },
-            AppState::RunningShowHelp => match key_event.code {
-                KeyCode::Esc => self.state = AppState::Running,
-                KeyCode::Char('q') => self.exit(),
-                _ => {}
-            },
-            AppState::Exporting => match key_event.code {
-                KeyCode::Esc => {
-                    self.modal.reset();
-                    self.state = AppState::Running
-                }
-                KeyCode::Down => self.modal.list_state.select(Some(1)),
-                KeyCode::Up => self.modal.list_state.select(Some(0)),
-                KeyCode::Char(c) => {
-                    if self.modal.is_enter_filename_state() {
-                        self.modal.filename_field.enter_char(c);
-                    } else {
-                        match c {
-                            'j' => self.modal.list_state.select(Some(1)),
-                            'k' => self.modal.list_state.select(Some(0)),
-                            _ => {}
-                        }
-                    }
-                }
-                KeyCode::Backspace => {
-                    if self.modal.is_enter_filename_state() {
-                        self.modal.filename_field.delete_char();
-                    }
-                }
-                KeyCode::Enter => {
-                    if !self.modal.is_enter_filename_state() {
-                        self.modal.next();
-                    } else {
-                        if let Some(selected) = self.modal.list_state.selected() {
-                            let data = self.calculator.calc();
-                            let filename = self.modal.get_filename();
-                            if filename.is_empty() {
-                                self.status_msg = Some(String::from(
-                                    "Empy file name, please enter a valid name.",
-                                ));
-                                return;
-                            }
+            _ => {}
+        }
+    }
 
-                            if let Some(output_path) =
-                                create_output_file_path(&self.config, filename)
-                            {
-                                if 0 == selected {
-                                    match CsvExporter::new(&output_path).export(&data) {
-                                        Ok(()) => {
-                                            info!("Exported file at {output_path}.csv");
-                                            self.status_msg =
-                                                Some(format!("Exported file at {output_path}.csv"))
-                                        }
-                                        Err(e) => {
-                                            error!("Export: {e}");
-                                            self.status_msg = Some(format!("Export Error: {e}"))
-                                        }
-                                    }
-                                } else if 1 == selected {
-                                    match ExcelExporter::new(&output_path).export(&data) {
-                                        Ok(()) => {
-                                            info!("Exported file at {output_path}.csv");
-                                            self.status_msg =
-                                                Some(format!("Exported file at {output_path}.csv"))
-                                        }
-                                        Err(e) => {
-                                            error!("Export: {e}");
-                                            self.status_msg = Some(format!("Export Error: {e}"))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        self.modal.reset();
-                        self.state = AppState::Running;
-                    }
-                }
-                _ => {}
-            },
-            AppState::Exited => {}
+    fn increase_points(&mut self) {
+        self.change_scale(self.calculator.scale.to_custom());
+        match self.table.selected() {
+            Some(i) => {
+                // get current min point
+                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
+                    self.calculator.scale.change(
+                        i,
+                        round_dp((min + 1.0) / self.calculator.total_points as f64, 2),
+                    );
+                };
+            }
+            None => {}
+        }
+    }
+
+    fn decrease_points(&mut self) {
+        self.change_scale(self.calculator.scale.to_custom());
+
+        match self.table.selected() {
+            Some(i) => {
+                // get current min point
+                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
+                    self.calculator.scale.change(
+                        i,
+                        round_dp((min - 1.0) / self.calculator.total_points as f64, 2),
+                    );
+                };
+            }
+            None => {}
         }
     }
 
     fn exit(&mut self) {
-        self.state = AppState::Exited
-    }
-}
-
-/// helper function to get scale colors
-fn scale_color(scale: &GradeScale) -> Color {
-    match scale {
-        GradeScale::IHK => Color::Yellow,
-        GradeScale::TECHNIKER => Color::Blue,
-        GradeScale::LINEAR => Color::Green,
-        GradeScale::Custom(_) => Color::LightRed,
-    }
-}
-
-/// helper function to get output path without file extension
-fn create_output_file_path(config: &AppConfig, filename: &str) -> Option<String> {
-    if filename.starts_with("/") {
-        // absolute path.
-        return Some(filename.to_owned());
-    } else if filename.starts_with("~") {
-        // home path
-        return expand_home(filename);
-    } else {
-        if let Some(path) = config.get_export_path() {
-            let mut path = path.to_owned();
-            path.push(filename);
-            if let Some(output_path) = path.to_str() {
-                return Some(output_path.to_owned());
-            }
-        }
-    }
-    None
-}
-
-fn expand_home(filename: &str) -> Option<String> {
-    if let Some(home_path) = UserDirs::new().and_then(|u| Some(u.home_dir().to_path_buf())) {
-        let expanded = filename.replacen("~", home_path.to_str()?, 1);
-        Some(expanded)
-    } else {
-        None
+        self.mode = AppMode::Exited;
     }
 }

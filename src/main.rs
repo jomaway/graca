@@ -14,12 +14,13 @@ use tracing::{debug, info};
 
 pub mod app;
 mod cli;
+mod command;
 mod config;
 mod export;
 mod grade;
-mod helpers;
+mod grade_table;
 mod logging;
-mod ui;
+mod theme;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init logging
@@ -41,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         App::new().with_points(args.points)
     };
     info!("Starting app ...");
+    debug!("Debug mode ");
     let _res = app.run(&mut terminal);
 
     // restore terminal

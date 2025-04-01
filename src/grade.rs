@@ -1,6 +1,8 @@
-use serde::Deserialize;
+use std::collections::HashMap;
 
-use crate::helpers::round_dp;
+use ratatui::style::Color;
+use serde::Deserialize;
+use strum_macros::EnumIter;
 
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
     (1, 0.92),
@@ -23,8 +25,9 @@ const LINEAR_BOUNDARIES: [(u8, f64); 6] = [
     (6, 0.0),
 ];
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize, EnumIter)]
 pub enum GradeScale {
+    #[default]
     IHK,
     TECHNIKER,
     LINEAR,
@@ -52,6 +55,26 @@ impl GradeScale {
         }
     }
 
+    // return a text representation of the scale
+    pub fn key_binding(&self) -> &'static str {
+        match self {
+            GradeScale::IHK => "I",
+            GradeScale::TECHNIKER => "T",
+            GradeScale::LINEAR => "L",
+            GradeScale::Custom(_) => "C",
+        }
+    }
+
+    // return an associated color
+    pub fn color(&self) -> Color {
+        match &self {
+            GradeScale::IHK => Color::Yellow,
+            GradeScale::TECHNIKER => Color::Blue,
+            GradeScale::LINEAR => Color::Green,
+            GradeScale::Custom(_) => Color::LightRed,
+        }
+    }
+
     // Check if it is a custom scale
     pub fn is_custom(&self) -> bool {
         matches!(self, GradeScale::Custom(_))
@@ -72,13 +95,6 @@ impl GradeScale {
                 values[index].1 = (value).clamp(0.0, 1.0); // Ensure no overflow
             }
         }
-    }
-}
-
-// make the IHK scale the default
-impl Default for GradeScale {
-    fn default() -> Self {
-        GradeScale::IHK
     }
 }
 
@@ -124,6 +140,7 @@ pub struct GradeCalculator {
     pub total_points: u32,
     pub scale: GradeScale,
     pub half_steps: bool,
+    pub data: HashMap<u32, (f64, f64)>,
 }
 
 impl Default for GradeCalculator {
@@ -132,6 +149,7 @@ impl Default for GradeCalculator {
             total_points: 100,
             scale: GradeScale::IHK,
             half_steps: false,
+            data: HashMap::new(),
         }
     }
 }
@@ -168,6 +186,29 @@ impl GradeCalculator {
         }
     }
 
+    fn update_data(&mut self) {
+        let scale_values = self.scale.values();
+        for i in 0..scale_values.len() {
+            let grade = scale_values[i].0;
+            let min_percentage = scale_values[i].1;
+            let max_percentage = if i == 0 {
+                1.0 // Maximum percentage for grade 1
+            } else {
+                scale_values[i - 1].1
+            };
+
+            let min_points = self.calc_points_from_percentage(min_percentage);
+            let max_points = if i == 0 {
+                self.total_points as f64
+            } else {
+                let sub = if self.half_steps { 0.5 } else { 1.0 };
+                self.calc_points_from_percentage(max_percentage) - sub
+            };
+
+            self.data.insert(grade as u32, (min_points, max_points));
+        }
+    }
+
     fn calc_points_from_percentage(&self, pct: f64) -> f64 {
         (pct * self.total_points as f64).round()
     }
@@ -198,4 +239,10 @@ impl GradeCalculator {
 
         grades
     }
+}
+
+/// helper function to round a number to given decimal places.
+pub fn round_dp(value: f64, dp: usize) -> f64 {
+    let x = 10u32.pow(dp as u32) as f64;
+    (value * x).round() / x
 }
