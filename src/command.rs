@@ -10,23 +10,34 @@ pub enum Commands {
 impl Commands {
     // parse the user input to a command.
     pub fn parse(raw_input: &str) -> Result<Commands, String> {
-        let (cmd, args) = raw_input.split_at(1);
-        match cmd.trim() {
-            "p" => {
-                if let Ok(points) = args.trim().parse::<u32>() {
+        let mut parts = raw_input.trim().split_whitespace();
+        let cmd = parts.next().unwrap_or("");
+        let args: Vec<&str> = parts.collect(); // Rest are arguments
+
+        if cmd.is_empty() {
+            return Err(format!("ERROR: invalid input nothing found."));
+        }
+
+        if args.len() < 1 {
+            return Err(format!("ERROR: no arguments found"));
+        }
+
+        match cmd {
+            "set-points" => {
+                if let Ok(points) = args[0].parse::<u32>() {
                     Ok(Self::SetMaxPoints(points))
                 } else {
                     Err(format!(
                         "ERROR: could not parse points from '{}' to u32.",
-                        args
+                        args.join(",")
                     ))
                 }
             }
-            "e" => {
-                if let Some(path) = resolve_path(args) {
+            "export" => {
+                if let Some(path) = resolve_path(args[0]) {
                     Ok(Self::Export(path))
                 } else {
-                    Err(format!("Could not resovle path from '{}'", args))
+                    Err(format!("Could not resovle path from '{}'", args[0]))
                 }
             }
             _ => Err(format!("ERROR: '{}' is an unknown command", cmd)),
