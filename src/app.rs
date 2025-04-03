@@ -122,7 +122,12 @@ impl App {
         .areas(area);
 
         let identifier = Paragraph::new(text).style(Style::default().fg(Color::Black).bg(color));
-        let version = Paragraph::new("graca v0.1").right_aligned();
+        let version = Paragraph::new(format!(
+            "{} {}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        ))
+        .right_aligned();
 
         identifier.render(identifier_area, buf);
         version.render(version_area, buf);
@@ -234,11 +239,11 @@ impl App {
             AppMode::View => match key_event.code {
                 KeyCode::Char(':') => self.enter_command_mode(),
                 KeyCode::Char('p') => {
-                    self.input_field = "p ".into();
+                    self.input_field = "set-points ".into();
                     self.enter_command_mode();
                 }
                 KeyCode::Char('e') => {
-                    self.input_field = "e ".into();
+                    self.input_field = "export-to ".into();
                     self.enter_command_mode();
                 }
 

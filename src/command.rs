@@ -33,7 +33,7 @@ impl Commands {
                     ))
                 }
             }
-            "export" => {
+            "export-to" => {
                 if let Some(path) = resolve_path(args[0]) {
                     Ok(Self::Export(path))
                 } else {
