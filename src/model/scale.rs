@@ -2,12 +2,10 @@ use std::collections::BTreeMap;
 
 use ratatui::style::Color;
 use serde::Deserialize;
-use strum_macros::EnumIter;
+use strum_macros::{EnumIter, EnumString};
 
 use crate::ui::grading_scale_table::GradingScaleTableRowData;
 use tracing::{debug, info};
-
-use super::grade::Grade;
 
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
     (1, 0.92),
@@ -185,7 +183,7 @@ impl GradingScale {
         let thresholds = scale_type
             .values()
             .iter()
-            .map(|(grade, pct)| (Grade::new(*grade).unwrap(), (pct * max_points).round()))
+            .map(|(grade, pct)| (Grade::try_from(*grade).unwrap(), (pct * max_points).round()))
             .collect();
         Ok(thresholds)
     }
@@ -199,7 +197,7 @@ impl GradingScale {
             };
             self.update_points_for_grade(grade, new_points)
         } else {
-            Err(GradingError::InvalidGrade(grade.value()))
+            Err(GradingError::InvalidGrade(grade.to_number()))
         }
     }
 
@@ -212,7 +210,7 @@ impl GradingScale {
             };
             self.update_points_for_grade(grade, new_points)
         } else {
-            Err(GradingError::InvalidGrade(grade.value()))
+            Err(GradingError::InvalidGrade(grade.to_number()))
         }
     }
 
@@ -258,7 +256,7 @@ impl GradingScale {
                     self.total_points
                 };
 
-                GradingScaleTableRowData::new(grade.value(), min, max, pct)
+                GradingScaleTableRowData::new(grade.to_number(), min, max, pct)
             })
             .collect()
     }
@@ -268,4 +266,71 @@ impl GradingScale {
 pub fn round_dp(value: f64, dp: usize) -> f64 {
     let x = 10u32.pow(dp as u32) as f64;
     (value * x).round() / x
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, EnumString, Ord, PartialOrd)]
+pub enum Grade {
+    VeryGood,     // 1
+    Good,         // 2
+    Satisfactory, // 3
+    Sufficient,   // 4
+    Poor,         // 5
+    Fail,         // 6
+}
+
+impl Grade {
+    pub fn to_number(self) -> u8 {
+        match self {
+            Grade::VeryGood => 1,
+            Grade::Good => 2,
+            Grade::Satisfactory => 3,
+            Grade::Sufficient => 4,
+            Grade::Poor => 5,
+            Grade::Fail => 6,
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Grade::VeryGood => "Very Good",
+            Grade::Good => "Good",
+            Grade::Satisfactory => "Satisfactory",
+            Grade::Sufficient => "Sufficient",
+            Grade::Poor => "Poor",
+            Grade::Fail => "Fail",
+        }
+    }
+
+    pub fn next_better(self) -> Option<Self> {
+        match self {
+            Grade::VeryGood => None,
+            Grade::Good => Some(Grade::VeryGood),
+            Grade::Satisfactory => Some(Grade::Good),
+            Grade::Sufficient => Some(Grade::Satisfactory),
+            Grade::Poor => Some(Grade::Sufficient),
+            Grade::Fail => Some(Grade::Poor),
+        }
+    }
+}
+
+impl TryFrom<u8> for Grade {
+    type Error = GradingError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Grade::VeryGood),
+            2 => Ok(Grade::Good),
+            3 => Ok(Grade::Satisfactory),
+            4 => Ok(Grade::Sufficient),
+            5 => Ok(Grade::Poor),
+            6 => Ok(Grade::Fail),
+            _ => Err(GradingError::InvalidGrade(value)),
+        }
+    }
+}
+
+impl std::fmt::Display for Grade {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_number())
+    }
 }

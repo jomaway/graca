@@ -1,4 +1,3 @@
-pub mod grade;
 pub mod scale;
 
 use scale::{GradeScaleType, GradingScale};

@@ -15,8 +15,7 @@ use crate::action::{Action, UserEvent};
 use crate::command::Commands;
 use crate::config::AppConfig;
 use crate::export::export;
-use crate::model::grade::Grade;
-use crate::model::scale::{GradeScaleType, GradingScale};
+use crate::model::scale::{Grade, GradeScaleType, GradingScale};
 use crate::model::Model;
 use crate::ui::exam_result_table::{ExamResultTable, ExamResultTableRowData};
 use crate::ui::exam_stats_chart::ExamChart;
@@ -76,7 +75,7 @@ impl App {
                 "Anton",
                 70.0,
                 GradingScale::percentage_for_points(70.0, 100.0),
-                m.scale.grade_for_points(70.0).unwrap().value(),
+                m.scale.grade_for_points(70.0).unwrap().to_number(),
             ),
             ExamResultTableRowData::new("Clara", 35.0, 0.2, 5),
             ExamResultTableRowData::new("Pete", 51.0, 0.2, 2),
@@ -402,7 +401,7 @@ impl App {
             Some(grade) => {
                 self.model
                     .scale
-                    .increment_points_for_grade(Grade::new(grade).unwrap());
+                    .increment_points_for_grade(Grade::try_from(grade).unwrap());
                 self.update_accent_color();
             }
             None => {}
@@ -414,7 +413,7 @@ impl App {
             Some(grade) => {
                 self.model
                     .scale
-                    .decrement_points_for_grade(Grade::new(grade).unwrap());
+                    .decrement_points_for_grade(Grade::try_from(grade).unwrap());
                 self.update_accent_color();
             }
             None => {}
