@@ -3,16 +3,14 @@ pub mod students;
 
 use std::{collections::HashMap, path::Path};
 
-use scale::{round_dp, Grade, GradeScaleType, GradingScale};
-use students::StudentList;
-use tracing::error;
-
 use crate::{
-    action::{Action, ModelAction},
+    action::ModelAction,
     ui::{
         exam_result_table::ExamResultTableRowData, grading_scale_table::GradingScaleTableRowData,
     },
 };
+use scale::{round_dp, Grade, GradeScaleType, GradingScale};
+use students::StudentList;
 
 #[derive(Debug, Default)]
 pub struct Model {

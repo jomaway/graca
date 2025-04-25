@@ -4,7 +4,6 @@ use ratatui::widgets::{Block, Tabs};
 use std::io;
 use std::path::PathBuf;
 use strum::IntoEnumIterator;
-use style::palette::tailwind::BLACK;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -13,15 +12,13 @@ use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
 use tracing::debug;
 
 use crate::action::{Action, ModelAction};
-use crate::command::Commands;
 use crate::config::AppConfig;
-use crate::export::export;
-use crate::model::scale::{Grade, GradeScaleType};
+use crate::model::scale::GradeScaleType;
 use crate::model::Model;
 use crate::ui::exam_result_table::ExamResultTable;
 use crate::ui::exam_stats_chart::ExamChart;
 use crate::ui::grading_scale_table::GradingScaleTable;
-use crate::ui::theme::{DARK_WHITE, LIGHT_GRAY, THEME};
+use crate::ui::theme::{BLACK, DARK_WHITE, LIGHT_GRAY, THEME};
 use crate::ui::AppTab;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -136,6 +133,9 @@ impl App {
                 self.model.update(act);
                 self.update(Action::UpdateView);
             }
+            Action::ExportTo(path_buf) => {
+                todo!();
+            }
             _ => {}
         }
     }
@@ -152,12 +152,9 @@ impl App {
         let area = frame.area();
 
         // main layout.
-        let [header_area, _, main_area, _, command_area, help_area] = Layout::vertical([
-            Constraint::Length(1),
+        let [header_area, main_area, help_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Percentage(100),
-            Constraint::Length(1),
-            Constraint::Length(1),
             Constraint::Length(1),
         ])
         .areas(area);
@@ -167,6 +164,7 @@ impl App {
 
         // MAIN AREA
         let [table_area] = Layout::horizontal([Constraint::Max(80)])
+            .margin(1)
             .flex(Flex::Center)
             .areas(main_area);
 
@@ -177,7 +175,6 @@ impl App {
         }
 
         // BOTTOM
-        self.render_command_bar(command_area, frame.buffer_mut());
         App::render_help_bar(help_area, frame.buffer_mut());
     }
 
@@ -227,7 +224,7 @@ impl App {
     }
 
     fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
-        let [tabs_area] = Layout::horizontal([Constraint::Max(80)])
+        let [tabs_area] = Layout::horizontal([Constraint::Length(37)])
             .flex(Flex::Center)
             .areas(area);
 
@@ -240,22 +237,9 @@ impl App {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             )
+            .style(Style::default())
             .divider("»")
             .render(tabs_area, buf);
-    }
-
-    fn render_command_bar(&self, area: Rect, buf: &mut Buffer) {
-        let text = if self.mode == AppMode::Insert {
-            format!(">>> {}", self.input_field.value())
-        } else if let Some(msg) = &self.status_msg {
-            format!("Status: {}", msg)
-        } else {
-            "".into()
-        };
-
-        Paragraph::new(text)
-            .style(THEME.bar_style)
-            .render(area, buf);
     }
 
     fn render_help_bar(area: Rect, buf: &mut Buffer) {
@@ -310,24 +294,24 @@ impl App {
         self.mode = AppMode::Insert;
     }
 
-    fn execute_command(&mut self) {
-        match Commands::parse(self.input_field.value()) {
-            Ok(Commands::SetMaxPoints(points)) => {
-                self.status_msg = Some(format!("set max points to {}:", points));
-                self.set_points(points);
-            }
-            Ok(Commands::Export(path_buf)) => {
-                self.status_msg = Some(format!("export to{}", path_buf.display()));
-                match export(path_buf.as_path(), &self.model.get_scale_data()) {
-                    Ok(_) => {
-                        self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
-                    }
-                    Err(e) => self.status_msg = Some(e.msg()),
-                }
-            }
-            Err(msg) => self.status_msg = Some(msg),
-        }
-    }
+    // fn execute_command(&mut self) {
+    //     match Commands::parse(self.input_field.value()) {
+    //         Ok(Commands::SetMaxPoints(points)) => {
+    //             self.status_msg = Some(format!("set max points to {}:", points));
+    //             self.set_points(points);
+    //         }
+    //         Ok(Commands::Export(path_buf)) => {
+    //             self.status_msg = Some(format!("export to{}", path_buf.display()));
+    //             match export(path_buf.as_path(), &self.model.get_scale_data()) {
+    //                 Ok(_) => {
+    //                     self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
+    //                 }
+    //                 Err(e) => self.status_msg = Some(e.msg()),
+    //             }
+    //         }
+    //         Err(msg) => self.status_msg = Some(msg),
+    //     }
+    // }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<Action> {
         // Terminate with CTRL+C
@@ -342,7 +326,7 @@ impl App {
             AppMode::Insert => match key_event.code {
                 KeyCode::Esc => Some(Action::LeaveInsertMode),
                 KeyCode::Enter => {
-                    self.execute_command();
+                    // self.execute_command();
                     Some(Action::LeaveInsertMode)
                 }
                 _ => {
@@ -351,15 +335,15 @@ impl App {
                 }
             },
             AppMode::Normal => match key_event.code {
-                KeyCode::F(1) => {
+                KeyCode::F(1) | KeyCode::Char('1') => {
                     // self.selected_tab = SelectedTab::Scale;
                     Some(Action::SwitchTab(AppTab::Scale))
                 }
-                KeyCode::F(2) => {
+                KeyCode::F(2) | KeyCode::Char('2') => {
                     // self.selected_tab = SelectedTab::Result;
                     Some(Action::SwitchTab(AppTab::Result))
                 }
-                KeyCode::F(3) => {
+                KeyCode::F(3) | KeyCode::Char('3') => {
                     // self.selected_tab = SelectedTab::Report;
                     Some(Action::SwitchTab(AppTab::Report))
                 }
