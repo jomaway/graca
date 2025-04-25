@@ -39,6 +39,11 @@ impl ExamResultTable {
         }
     }
 
+    pub fn with_data(mut self, data: Vec<ExamResultTableRowData>) -> Self {
+        self.set_data(data);
+        self
+    }
+
     pub fn set_title(&mut self, title: &str) {
         self.title = title.into();
     }
@@ -48,8 +53,8 @@ impl ExamResultTable {
     }
 
     pub fn set_data(&mut self, data: Vec<ExamResultTableRowData>) {
-        self.scroll_state = ScrollbarState::new((data.len() - 1) * ITEM_HEIGHT);
-        self.items = data
+        self.items = data;
+        self.scroll_state = ScrollbarState::new((self.items.len().saturating_sub(1)) * ITEM_HEIGHT);
     }
 
     fn scroll_to_selected(&mut self) {

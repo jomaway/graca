@@ -4,7 +4,6 @@ use ratatui::style::Color;
 use serde::Deserialize;
 use strum_macros::{EnumIter, EnumString};
 
-use crate::ui::grading_scale_table::GradingScaleTableRowData;
 use tracing::{debug, info};
 
 const IHK_BOUNDARIES: [(u8, f64); 6] = [
@@ -132,13 +131,17 @@ impl GradingScale {
         })
     }
 
-    pub fn total_points(&self) -> f64 {
+    pub fn max_points(&self) -> f64 {
         self.total_points
     }
 
     pub fn set_total_points(&mut self, total: f64) {
         self.total_points = total;
         self.recalculate();
+    }
+
+    pub fn thresholds(&self) -> BTreeMap<Grade, f64> {
+        self.thresholds.clone()
     }
 
     // toggle half steps option.
@@ -166,11 +169,6 @@ impl GradingScale {
         if let Ok(thresholds) =
             GradingScale::calculate_thresholds(&self.scale_type, self.total_points)
         {
-            debug!(
-                "recalculate ({}) thresholds: {:?}",
-                self.scale_type.text(),
-                thresholds
-            );
             self.thresholds = thresholds;
         }
     }
@@ -236,29 +234,12 @@ impl GradingScale {
     pub fn grade_for_points(&self, points: f64) -> Option<Grade> {
         self.thresholds
             .iter()
-            .find(|(_, &pts)| points > pts)
+            .find(|(_, &pts)| points >= pts)
             .map(|(grade, _)| *grade)
     }
 
     pub fn percentage_for_points(points: f64, total: f64) -> f64 {
         round_dp(points / total, 2)
-    }
-
-    pub fn to_grading_scale_table_data(&self) -> Vec<GradingScaleTableRowData> {
-        self.thresholds
-            .iter()
-            .map(|(grade, &min)| {
-                let pct = GradingScale::percentage_for_points(min, self.total_points);
-
-                let max = if let Some(better_grade) = grade.next_better() {
-                    *self.thresholds.get(&better_grade).unwrap() - 1.0 // todo: does not take half points into account
-                } else {
-                    self.total_points
-                };
-
-                GradingScaleTableRowData::new(grade.to_number(), min, max, pct)
-            })
-            .collect()
     }
 }
 

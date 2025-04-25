@@ -2,6 +2,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use layout::Flex;
 use ratatui::widgets::{Block, Tabs};
 use std::io;
+use std::path::{Path, PathBuf};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use tui_input::backend::crossterm::EventHandler;
@@ -16,6 +17,7 @@ use crate::command::Commands;
 use crate::config::AppConfig;
 use crate::export::export;
 use crate::model::scale::{Grade, GradeScaleType, GradingScale};
+use crate::model::students::StudentList;
 use crate::model::Model;
 use crate::ui::exam_result_table::{ExamResultTable, ExamResultTableRowData};
 use crate::ui::exam_stats_chart::ExamChart;
@@ -66,40 +68,15 @@ impl App {
     pub fn new() -> Self {
         // only for testing
         // todo: remove this
-        //
-        //
-        let m = Model::new();
-        let mut restab = ExamResultTable::new("EAV3s 📔 MCR 📎 KA1");
-        let results = vec![
-            ExamResultTableRowData::new(
-                "Anton",
-                70.0,
-                GradingScale::percentage_for_points(70.0, 100.0),
-                m.scale.grade_for_points(70.0).unwrap().to_number(),
-            ),
-            ExamResultTableRowData::new("Clara", 35.0, 0.2, 5),
-            ExamResultTableRowData::new("Pete", 51.0, 0.2, 2),
-            ExamResultTableRowData::new("Tim", 89.0, 0.2, 1),
-            ExamResultTableRowData::new("Domi", 20.0, 0.2, 3),
-            ExamResultTableRowData::new("Finia", 99.0, 0.2, 1),
-            ExamResultTableRowData::new("Kurt", 67.0, 0.2, 2),
-            ExamResultTableRowData::new("Bart", 11.0, 0.2, 6),
-            ExamResultTableRowData::new("Anton", 20.0, 0.2, 4),
-            ExamResultTableRowData::new("Clara", 35.0, 0.2, 5),
-            ExamResultTableRowData::new("Pete", 51.0, 0.2, 2),
-            ExamResultTableRowData::new("Tim", 89.0, 0.2, 1),
-            ExamResultTableRowData::new("Domi", 20.0, 0.2, 3),
-            ExamResultTableRowData::new("Finia", 99.0, 0.2, 1),
-            ExamResultTableRowData::new("Kurt", 67.0, 0.2, 2),
-            ExamResultTableRowData::new("Bart", 11.0, 0.2, 6),
-        ];
-        restab.set_data(results);
+        let mut m = Model::new();
+        m.load_student_data(PathBuf::from("data/TestStudents.csv").as_path());
+        let restab = ExamResultTable::new(&format!("{} 📔 MCR 📎 KA1", m.get_class_name()))
+            .with_data(m.get_student_data());
+
         Self {
             config: AppConfig::new(),
-            // state: AppState::Running,
             mode: AppMode::View,
-            model: Model::new(),
-            // calculator: GradeCalculator::new(),
+            model: m,
             scale_table: GradingScaleTable::new(),
             result_table: restab,
             exam_chart: ExamChart::default(),
@@ -138,7 +115,16 @@ impl App {
     }
 
     fn update(&mut self, action: Action) {
-        self.exam_chart.set_data(&[3, 1, 2, 7, 2, 0]);
+        // debug!("AVG: {}", self.model.grade_average());
+        let mut chart_data = [0u8; 6];
+        for (grade, count) in self.model.grade_distribution() {
+            if (1..=6).contains(&grade) {
+                chart_data[(grade - 1) as usize] = count as u8;
+            }
+        }
+        self.exam_chart.set_data(&chart_data);
+        self.result_table.set_data(self.model.get_student_data());
+        self.scale_table.update(self.model.get_scale_data());
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -167,21 +153,12 @@ impl App {
         self.render_header_bar(header_area, frame.buffer_mut());
 
         // MAIN AREA
-        let [table_area] = Layout::horizontal([
-            // Constraint::Fill(1),
-            Constraint::Max(80),
-            // Constraint::Fill(1),
-        ])
-        .flex(Flex::Center)
-        .areas(main_area);
+        let [table_area] = Layout::horizontal([Constraint::Max(80)])
+            .flex(Flex::Center)
+            .areas(main_area);
 
         match self.selected_tab {
-            SelectedTab::Scale => {
-                // self.scale_table.update_data(self.calculator.calc());
-                self.scale_table
-                    .update(self.model.scale.to_grading_scale_table_data());
-                self.scale_table.render(table_area, frame.buffer_mut());
-            }
+            SelectedTab::Scale => self.scale_table.render(table_area, frame.buffer_mut()),
             SelectedTab::Result => self.result_table.render(table_area, frame.buffer_mut()),
             SelectedTab::Report => self.exam_chart.render(table_area, frame.buffer_mut()),
         }
@@ -300,10 +277,7 @@ impl App {
             }
             Ok(Commands::Export(path_buf)) => {
                 self.status_msg = Some(format!("export to{}", path_buf.display()));
-                match export(
-                    path_buf.as_path(),
-                    &self.model.scale.to_grading_scale_table_data(),
-                ) {
+                match export(path_buf.as_path(), &self.model.get_scale_data()) {
                     Ok(_) => {
                         self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
                     }
@@ -376,12 +350,12 @@ impl App {
                         KeyCode::Right | KeyCode::Char('l') => self.scale_table.select_col_max(),
                         KeyCode::Esc => self.scale_table.state.select_column(None),
                         KeyCode::PageUp => {
-                            self.set_points(self.model.scale.total_points() as u32 + 1)
+                            self.set_points(self.model.scale.max_points() as u32 + 1)
                         }
 
                         KeyCode::Char('+') => self.increase_points(),
                         KeyCode::PageDown => {
-                            self.set_points(self.model.scale.total_points() as u32 - 1)
+                            self.set_points(self.model.scale.max_points() as u32 - 1)
                         }
                         KeyCode::Char('-') => self.decrease_points(),
                         _ => {}
