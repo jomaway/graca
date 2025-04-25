@@ -10,7 +10,7 @@ use csv::Error as CsvError;
 use directories::UserDirs;
 use rust_xlsxwriter::{Format, Workbook, XlsxError};
 
-use crate::grade::Grade;
+use crate::ui::grading_scale_table::GradingScaleTableRowData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExportError {
@@ -70,7 +70,7 @@ impl From<toml::ser::Error> for ExportError {
 }
 
 pub trait Exporter {
-    fn export(path: &Path, data: &Vec<Grade>) -> Result<(), ExportError>;
+    fn export(path: &Path, data: &Vec<GradingScaleTableRowData>) -> Result<(), ExportError>;
 }
 
 pub struct CsvExporter;
@@ -78,16 +78,11 @@ pub struct TomlExporter;
 pub struct XlsxExporter;
 
 impl Exporter for CsvExporter {
-    fn export(path: &Path, data: &Vec<Grade>) -> Result<(), ExportError> {
+    fn export(path: &Path, data: &Vec<GradingScaleTableRowData>) -> Result<(), ExportError> {
         let mut wtr = csv::Writer::from_path(path)?;
 
-        for grade in data.into_iter() {
-            wtr.serialize((
-                grade.value().to_string(),
-                grade.min().to_string(),
-                grade.max().to_string(),
-                grade.pct(data[0].max()),
-            ))?
+        for data_row in data.into_iter() {
+            wtr.serialize(data_row.as_str_array())?
         }
         wtr.flush()?;
 
@@ -97,10 +92,10 @@ impl Exporter for CsvExporter {
 }
 
 impl Exporter for TomlExporter {
-    fn export(path: &Path, data: &Vec<Grade>) -> Result<(), ExportError> {
-        let mut dict: HashMap<String, f64> = HashMap::new();
-        for grade in data {
-            dict.insert(grade.value().to_string(), grade.min());
+    fn export(path: &Path, data: &Vec<GradingScaleTableRowData>) -> Result<(), ExportError> {
+        let mut dict: HashMap<String, String> = HashMap::new();
+        for [grade, min, max, pct] in data.iter().map(|row| row.as_str_array()) {
+            dict.insert(grade, format!("({},{},{})", min, max, pct));
         }
 
         let toml_string = toml::to_string_pretty(&dict)?;
@@ -110,7 +105,7 @@ impl Exporter for TomlExporter {
 }
 
 impl Exporter for XlsxExporter {
-    fn export(path: &Path, data: &Vec<Grade>) -> Result<(), ExportError> {
+    fn export(path: &Path, data: &Vec<GradingScaleTableRowData>) -> Result<(), ExportError> {
         // Create a new Excel file object.
         let mut workbook = Workbook::new();
 
@@ -126,12 +121,12 @@ impl Exporter for XlsxExporter {
         worksheet.write_with_format(0, 2, "max", &bold)?;
         worksheet.write_with_format(0, 3, "%", &bold)?;
 
-        for (idx, grade) in data.iter().enumerate() {
+        for (idx, row_data) in data.iter().map(|row| row.as_str_array()).enumerate() {
             let idx = idx as u32;
-            worksheet.write(idx + 1, 0, grade.value().to_string())?;
-            worksheet.write(idx + 1, 1, grade.min().to_string())?;
-            worksheet.write(idx + 1, 2, grade.max().to_string())?;
-            worksheet.write(idx + 1, 3, grade.pct(data[0].max()).to_string())?;
+            worksheet.write(idx + 1, 0, row_data[0].clone())?;
+            worksheet.write(idx + 1, 1, row_data[1].clone())?;
+            worksheet.write(idx + 1, 2, row_data[2].clone())?;
+            worksheet.write(idx + 1, 3, row_data[3].clone())?;
         }
 
         workbook.save(path)?;
@@ -140,7 +135,7 @@ impl Exporter for XlsxExporter {
     }
 }
 
-pub fn export(path: &Path, data: &Vec<Grade>) -> Result<(), ExportError> {
+pub fn export(path: &Path, data: &Vec<GradingScaleTableRowData>) -> Result<(), ExportError> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("csv") => Ok(CsvExporter::export(path, data)?),
         Some("toml") => Ok(TomlExporter::export(path, data)?),

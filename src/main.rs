@@ -1,6 +1,7 @@
 use std::io;
 
 use config::AppConfig;
+use config::LOG_ENV;
 use logging::initialize_logging;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::disable_raw_mode;
@@ -12,15 +13,17 @@ pub use app::App;
 use cli::{Args, Parser};
 use tracing::{debug, info};
 
-pub mod app;
+mod action;
+mod app;
 mod cli;
 mod command;
 mod config;
 mod export;
 mod grade;
-mod grade_table;
 mod logging;
-mod theme;
+
+mod model;
+mod ui;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init logging

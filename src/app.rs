@@ -1,7 +1,9 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::widgets::Block;
+use layout::Flex;
+use ratatui::widgets::{Block, Tabs};
 use std::io;
 use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -9,41 +11,102 @@ use ratatui::prelude::*;
 use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
 use tracing::debug;
 
+use crate::action::{Action, UserEvent};
 use crate::command::Commands;
 use crate::config::AppConfig;
 use crate::export::export;
-use crate::grade::*;
-use crate::grade_table::GradeTable;
-use crate::theme::THEME;
+use crate::model::grade::Grade;
+use crate::model::scale::{GradeScaleType, GradingScale};
+use crate::model::Model;
+use crate::ui::exam_result_table::{ExamResultTable, ExamResultTableRowData};
+use crate::ui::exam_stats_chart::ExamChart;
+use crate::ui::grading_scale_table::GradingScaleTable;
+use crate::ui::theme::THEME;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppMode {
     View,
+    Edit,
     Command,
     // Help,
     Exited,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
+pub enum SelectedTab {
+    #[default]
+    Scale,
+    Result,
+    Report,
+}
+
+impl SelectedTab {
+    pub fn to_string(&self) -> String {
+        match self {
+            SelectedTab::Scale => "Scale [1]".into(),
+            SelectedTab::Result => "Result [2]".into(),
+            SelectedTab::Report => "Report [3]".into(),
+        }
+    }
+}
+
 pub struct App {
     config: AppConfig,
-    // state: AppState,
     mode: AppMode,
-    calculator: GradeCalculator,
-    table: GradeTable,
+    model: Model,
+    // calculator: GradeCalculator,
+    scale_table: GradingScaleTable,
+    result_table: ExamResultTable,
+    exam_chart: ExamChart,
     input_field: Input,
     status_msg: Option<String>,
+    selected_tab: SelectedTab,
 }
 
 impl App {
     pub fn new() -> Self {
+        // only for testing
+        // todo: remove this
+        //
+        //
+        let m = Model::new();
+        let mut restab = ExamResultTable::new("EAV3s 📔 MCR 📎 KA1");
+        let results = vec![
+            ExamResultTableRowData::new(
+                "Anton",
+                70.0,
+                GradingScale::percentage_for_points(70.0, 100.0),
+                m.scale.grade_for_points(70.0).unwrap().value(),
+            ),
+            ExamResultTableRowData::new("Clara", 35.0, 0.2, 5),
+            ExamResultTableRowData::new("Pete", 51.0, 0.2, 2),
+            ExamResultTableRowData::new("Tim", 89.0, 0.2, 1),
+            ExamResultTableRowData::new("Domi", 20.0, 0.2, 3),
+            ExamResultTableRowData::new("Finia", 99.0, 0.2, 1),
+            ExamResultTableRowData::new("Kurt", 67.0, 0.2, 2),
+            ExamResultTableRowData::new("Bart", 11.0, 0.2, 6),
+            ExamResultTableRowData::new("Anton", 20.0, 0.2, 4),
+            ExamResultTableRowData::new("Clara", 35.0, 0.2, 5),
+            ExamResultTableRowData::new("Pete", 51.0, 0.2, 2),
+            ExamResultTableRowData::new("Tim", 89.0, 0.2, 1),
+            ExamResultTableRowData::new("Domi", 20.0, 0.2, 3),
+            ExamResultTableRowData::new("Finia", 99.0, 0.2, 1),
+            ExamResultTableRowData::new("Kurt", 67.0, 0.2, 2),
+            ExamResultTableRowData::new("Bart", 11.0, 0.2, 6),
+        ];
+        restab.set_data(results);
         Self {
             config: AppConfig::new(),
             // state: AppState::Running,
             mode: AppMode::View,
-            calculator: GradeCalculator::new(),
-            table: GradeTable::new(),
+            model: Model::new(),
+            // calculator: GradeCalculator::new(),
+            scale_table: GradingScaleTable::new(),
+            result_table: restab,
+            exam_chart: ExamChart::default(),
             input_field: Input::default(),
             status_msg: None,
+            selected_tab: SelectedTab::default(),
         }
     }
 
@@ -59,12 +122,24 @@ impl App {
     }
 
     pub fn set_points(&mut self, points: u32) {
-        self.calculator.total_points = points;
+        // self.calculator.total_points = points;
+        self.model.scale.set_total_points(points as f64);
     }
 
-    fn change_scale(&mut self, scale: GradeScale) {
-        self.table.set_accent_color(scale.color());
-        self.calculator.scale = scale;
+    fn change_scale(&mut self, scale: GradeScaleType) {
+        self.model.scale.change_scale_type(scale);
+        self.update_accent_color();
+    }
+
+    fn update_accent_color(&mut self) {
+        let scale = self.model.scale.scale_type();
+        self.scale_table.set_accent_color(scale.color());
+        self.result_table.set_accent_color(scale.color());
+        self.exam_chart.set_accent_color(scale.color());
+    }
+
+    fn update(&mut self, action: Action) {
+        self.exam_chart.set_data(&[3, 1, 2, 7, 2, 0]);
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -82,8 +157,8 @@ impl App {
         let [header_area, _, main_area, _, command_area, help_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
-            Constraint::Length(21),
-            Constraint::Fill(1),
+            Constraint::Percentage(100),
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
         ])
@@ -93,15 +168,24 @@ impl App {
         self.render_header_bar(header_area, frame.buffer_mut());
 
         // MAIN AREA
-        let [_, table_area, _] = Layout::horizontal([
-            Constraint::Fill(1),
+        let [table_area] = Layout::horizontal([
+            // Constraint::Fill(1),
             Constraint::Max(80),
-            Constraint::Fill(1),
+            // Constraint::Fill(1),
         ])
+        .flex(Flex::Center)
         .areas(main_area);
 
-        self.table.update_data(self.calculator.calc());
-        self.table.render(table_area, frame.buffer_mut());
+        match self.selected_tab {
+            SelectedTab::Scale => {
+                // self.scale_table.update_data(self.calculator.calc());
+                self.scale_table
+                    .update(self.model.scale.to_grading_scale_table_data());
+                self.scale_table.render(table_area, frame.buffer_mut());
+            }
+            SelectedTab::Result => self.result_table.render(table_area, frame.buffer_mut()),
+            SelectedTab::Report => self.exam_chart.render(table_area, frame.buffer_mut()),
+        }
 
         // BOTTOM
         self.render_command_bar(command_area, frame.buffer_mut());
@@ -111,11 +195,12 @@ impl App {
     fn render_header_bar(&self, area: Rect, buf: &mut Buffer) {
         Block::default().style(THEME.bar_style).render(area, buf);
 
-        let text = format!(" {} ", self.calculator.scale.text());
-        let color = self.calculator.scale.color();
+        let text = format!(" {} ", self.model.scale.scale_type().text());
+        let color = self.model.scale.scale_type().color();
 
-        let [identifier_area, _, version_area] = Layout::horizontal([
+        let [identifier_area, _, tabs_area, version_area] = Layout::horizontal([
             Constraint::Min(text.len() as u16),
+            Constraint::Length(1),
             Constraint::Percentage(100),
             Constraint::Length(12),
         ])
@@ -130,7 +215,17 @@ impl App {
         .right_aligned();
 
         identifier.render(identifier_area, buf);
+        self.render_tabs(tabs_area, buf);
         version.render(version_area, buf);
+    }
+
+    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+        let titles = SelectedTab::iter().map(|tab| tab.to_string());
+        let selected_tab_index = self.selected_tab as usize;
+        Tabs::new(titles)
+            .select(selected_tab_index)
+            .divider("»")
+            .render(area, buf);
     }
 
     fn render_command_bar(&self, area: Rect, buf: &mut Buffer) {
@@ -148,7 +243,7 @@ impl App {
     }
 
     fn render_help_bar(area: Rect, buf: &mut Buffer) {
-        let mut keys: Vec<(&str, &str, Color)> = GradeScale::iter()
+        let mut keys: Vec<(&str, &str, Color)> = GradeScaleType::iter()
             .map(|s| (s.key_binding(), s.text(), s.color()))
             .collect();
 
@@ -180,7 +275,8 @@ impl App {
             // it's important to check that the event is a key press event as
             // crossterm also emits key release and repeat events on Windows.
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
+                self.handle_key_event(key_event);
+                self.update(Action::User(UserEvent::SwitchTab(SelectedTab::Report)));
             }
             _ => {}
         };
@@ -201,11 +297,14 @@ impl App {
         match Commands::parse(self.input_field.value()) {
             Ok(Commands::SetMaxPoints(points)) => {
                 self.status_msg = Some(format!("set max points to {}:", points));
-                self.calculator.total_points = points
+                self.set_points(points);
             }
             Ok(Commands::Export(path_buf)) => {
                 self.status_msg = Some(format!("export to{}", path_buf.display()));
-                match export(path_buf.as_path(), &self.calculator.calc()) {
+                match export(
+                    path_buf.as_path(),
+                    &self.model.scale.to_grading_scale_table_data(),
+                ) {
                     Ok(_) => {
                         self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
                     }
@@ -223,6 +322,19 @@ impl App {
                 debug!("Should exit");
                 self.exit();
             }
+        }
+
+        match key_event.code {
+            KeyCode::F(1) => {
+                self.selected_tab = SelectedTab::Scale;
+            }
+            KeyCode::F(2) => {
+                self.selected_tab = SelectedTab::Result;
+            }
+            KeyCode::F(3) => {
+                self.selected_tab = SelectedTab::Report;
+            }
+            _ => {}
         }
 
         match self.mode {
@@ -247,55 +359,63 @@ impl App {
                     self.enter_command_mode();
                 }
 
-                KeyCode::Char('I') => self.change_scale(GradeScale::IHK),
-                KeyCode::Char('T') => self.change_scale(GradeScale::TECHNIKER),
-                KeyCode::Char('L') => self.change_scale(GradeScale::LINEAR),
-                KeyCode::Char('C') => self.change_scale(self.calculator.scale.to_custom()),
+                KeyCode::Char('I') => self.change_scale(GradeScaleType::IHK),
+                KeyCode::Char('T') => self.change_scale(GradeScaleType::TECHNIKER),
+                KeyCode::Char('L') => self.change_scale(GradeScaleType::LINEAR),
+                KeyCode::Char('C') => self.change_scale(self.model.scale.scale_type().to_custom()),
 
-                KeyCode::Down | KeyCode::Char('j') => self.table.next_row(),
-                KeyCode::Up | KeyCode::Char('k') => self.table.previous_row(),
-                KeyCode::Left | KeyCode::Char('h') => self.table.select_col_min(),
-                KeyCode::Right | KeyCode::Char('l') => self.table.select_col_max(),
-                KeyCode::Esc => self.table.state.select_column(None),
-                KeyCode::Char('.') => self.calculator.toggle_steps(),
-                KeyCode::PageUp | KeyCode::Char('+') => self.increase_points(),
-                KeyCode::PageDown | KeyCode::Char('-') => self.decrease_points(),
+                KeyCode::Char('.') => self.model.scale.toggle_half_points(),
 
                 KeyCode::Char('q') => self.exit(),
-                _ => {}
+                _ => match self.selected_tab {
+                    SelectedTab::Scale => match key_event.code {
+                        KeyCode::Down | KeyCode::Char('j') => self.scale_table.state.select_next(),
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            self.scale_table.state.select_previous()
+                        }
+                        KeyCode::Left | KeyCode::Char('h') => self.scale_table.select_col_min(),
+                        KeyCode::Right | KeyCode::Char('l') => self.scale_table.select_col_max(),
+                        KeyCode::Esc => self.scale_table.state.select_column(None),
+                        KeyCode::PageUp => {
+                            self.set_points(self.model.scale.total_points() as u32 + 1)
+                        }
+
+                        KeyCode::Char('+') => self.increase_points(),
+                        KeyCode::PageDown => {
+                            self.set_points(self.model.scale.total_points() as u32 - 1)
+                        }
+                        KeyCode::Char('-') => self.decrease_points(),
+                        _ => {}
+                    },
+                    SelectedTab::Result => {
+                        self.result_table.handle_event(key_event);
+                    }
+                    SelectedTab::Report => {}
+                },
             },
             _ => {}
         }
     }
 
     fn increase_points(&mut self) {
-        self.change_scale(self.calculator.scale.to_custom());
-        match self.table.selected() {
-            Some(i) => {
-                // get current min point
-                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
-                    self.calculator.scale.change(
-                        i,
-                        round_dp((min + 1.0) / self.calculator.total_points as f64, 2),
-                    );
-                };
+        match self.scale_table.selected() {
+            Some(grade) => {
+                self.model
+                    .scale
+                    .increment_points_for_grade(Grade::new(grade).unwrap());
+                self.update_accent_color();
             }
             None => {}
         }
     }
 
     fn decrease_points(&mut self) {
-        self.change_scale(self.calculator.scale.to_custom());
-
-        match self.table.selected() {
-            Some(i) => {
-                // get current min point
-                if let Some(min) = self.calculator.min_for(i as u32 + 1) {
-                    self.calculator.scale.change(
-                        i,
-                        round_dp((min - 1.0) / self.calculator.total_points as f64, 2),
-                    );
-                };
+        match self.scale_table.selected() {
+            Some(grade) => {
+                self.model
+                    .scale
+                    .decrement_points_for_grade(Grade::new(grade).unwrap());
+                self.update_accent_color();
             }
             None => {}
         }

@@ -18,9 +18,9 @@ impl Commands {
             return Err(format!("ERROR: invalid input nothing found."));
         }
 
-        if args.len() < 1 {
-            return Err(format!("ERROR: no arguments found"));
-        }
+        // if args.len() < 1 {
+        //     return Err(format!("ERROR: no arguments found"));
+        // }
 
         match cmd {
             "set-points" => {

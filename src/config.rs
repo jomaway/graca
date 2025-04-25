@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use serde::Deserialize;
 use tracing::warn;
 
-use crate::grade::GradeScale;
+use crate::model::scale::GradeScaleType;
 
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
@@ -25,7 +25,7 @@ lazy_static! {
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
     export_path: Option<PathBuf>,
-    default_scale: GradeScale,
+    default_scale: GradeScaleType,
 }
 
 impl AppConfig {
@@ -36,7 +36,7 @@ impl AppConfig {
             } else {
                 None
             },
-            default_scale: GradeScale::IHK,
+            default_scale: GradeScaleType::IHK,
         }
     }
 
@@ -60,7 +60,7 @@ impl AppConfig {
         &self.export_path
     }
 
-    pub fn get_default_scale(&self) -> GradeScale {
+    pub fn get_default_scale(&self) -> GradeScaleType {
         self.default_scale.clone()
     }
 }
