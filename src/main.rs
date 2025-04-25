@@ -1,7 +1,6 @@
 use std::io;
 
 use config::AppConfig;
-use config::LOG_ENV;
 use logging::initialize_logging;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::disable_raw_mode;
@@ -39,15 +38,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let mut app = if let Ok(config) = AppConfig::read_config() {
-        App::new().with_config(config).with_points(args.points)
-    } else {
-        App::new().with_points(args.points)
-    };
     info!("Starting app ...");
-    debug!("Debug mode ");
+    let mut app = if let Ok(config) = AppConfig::read_config() {
+        App::new()
+            .with_config(config)
+            .with_points(args.points)
+            .init()
+    } else {
+        App::new().with_points(args.points).init()
+    };
+    debug!("Debug mode active.");
     let _res = app.run(&mut terminal);
-
+    info!("Terminate app with {:?}", _res);
     // restore terminal
     disable_raw_mode()?;
     execute!(

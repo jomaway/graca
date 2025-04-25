@@ -70,12 +70,24 @@ impl StudentList {
         })
     }
 
+    pub fn class_name(&self) -> &str {
+        &self.class_name
+    }
+
     pub fn iter_students(&self) -> impl Iterator<Item = &Student> {
         self.students.iter()
     }
 
     pub fn iter_students_mut(&mut self) -> impl Iterator<Item = &mut Student> {
         self.students.iter_mut()
+    }
+
+    pub fn get_student(&self, name: &str) -> Option<&Student> {
+        self.students.iter().find(|s| s.name == name)
+    }
+
+    pub fn get_student_mut(&mut self, name: &str) -> Option<&mut Student> {
+        self.students.iter_mut().find(|s| s.name == name)
     }
 }
 

@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint},
     prelude::{Buffer, Rect},
@@ -7,6 +8,8 @@ use ratatui::{
 };
 
 use super::theme::THEME;
+use crate::action::{Action, ScaleAction};
+use tracing::debug;
 
 pub struct GradingScaleTable {
     pub state: TableState,
@@ -45,6 +48,53 @@ impl GradingScaleTable {
 
     pub fn select_col_max(&mut self) {
         self.state.select_column(Some(2));
+    }
+
+    pub fn handle_event(&mut self, key: KeyEvent) -> Option<Action> {
+        debug!("EVENT: {:?}", key);
+        match key.code {
+            KeyCode::Up | KeyCode::Char('j') => {
+                self.state.select_previous();
+                None
+            }
+            KeyCode::Down | KeyCode::Char('k') => {
+                self.state.select_next();
+                None
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.select_col_min();
+                None
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                self.select_col_max();
+                None
+            }
+            KeyCode::Esc => {
+                self.state.select_column(None);
+                None
+            }
+            KeyCode::Char('+') => {
+                if let Some(index) = self.state.selected() {
+                    Some(Action::ChangeScale(ScaleAction::IncrementThreshold(
+                        self.data[index].grade,
+                    )))
+                } else {
+                    None
+                }
+            }
+            KeyCode::Char('-') => {
+                if let Some(index) = self.state.selected() {
+                    Some(Action::ChangeScale(ScaleAction::DecrementThreshold(
+                        self.data[index].grade,
+                    )))
+                } else {
+                    None
+                }
+            }
+            KeyCode::PageUp => Some(Action::ChangeScale(ScaleAction::IncrementMaxPoints)),
+            KeyCode::PageDown => Some(Action::ChangeScale(ScaleAction::DecrementMaxPoints)),
+            _ => None,
+        }
     }
 }
 

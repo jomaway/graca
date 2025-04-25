@@ -11,13 +11,10 @@ use ratatui::{
 };
 
 use super::theme::THEME;
+use crate::action::Action;
+use tracing::debug;
 
 const ITEM_HEIGHT: usize = 4;
-
-pub enum ExamResultTableEvent {
-    IncreasePoints(usize),
-    DecreasePoints(usize),
-}
 
 #[derive(Debug, Default, Clone)]
 pub struct ExamResultTable {
@@ -25,24 +22,37 @@ pub struct ExamResultTable {
     accent_color: Color,
     state: TableState,
     scroll_state: ScrollbarState,
-    items: Vec<ExamResultTableRowData>,
+    data: Vec<ExamResultTableRowData>,
 }
 
 impl ExamResultTable {
-    pub fn new(title: &str) -> Self {
+    pub fn new() -> Self {
         Self {
-            title: title.into(),
+            title: "Exam Results".into(),
             accent_color: THEME.default_accent_color,
             state: TableState::new(),
             scroll_state: ScrollbarState::default(),
-            items: Vec::new(),
+            data: Vec::new(),
         }
+    }
+
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.set_title(title);
+        self
     }
 
     pub fn with_data(mut self, data: Vec<ExamResultTableRowData>) -> Self {
         self.set_data(data);
         self
     }
+
+    // // return the selected Students name.
+    // pub fn selected(&self) -> Option<&str> {
+    //     if let Some(index) = self.state.selected() {
+    //         return Some(&self.data[index].name);
+    //     }
+    //     None
+    // }
 
     pub fn set_title(&mut self, title: &str) {
         self.title = title.into();
@@ -53,8 +63,8 @@ impl ExamResultTable {
     }
 
     pub fn set_data(&mut self, data: Vec<ExamResultTableRowData>) {
-        self.items = data;
-        self.scroll_state = ScrollbarState::new((self.items.len().saturating_sub(1)) * ITEM_HEIGHT);
+        self.data = data;
+        self.scroll_state = ScrollbarState::new((self.data.len().saturating_sub(1)) * ITEM_HEIGHT);
     }
 
     fn scroll_to_selected(&mut self) {
@@ -63,35 +73,39 @@ impl ExamResultTable {
         }
     }
 
-    pub fn handle_event(&mut self, key: KeyEvent) -> Option<ExamResultTableEvent> {
+    pub fn handle_event(&mut self, key: KeyEvent) -> Option<Action> {
+        debug!("EVENT: {:?}", key);
         match key.code {
             KeyCode::Up => {
                 self.state.select_previous();
                 self.scroll_to_selected();
+                None
             }
             KeyCode::Down => {
                 self.state.select_next();
                 self.scroll_to_selected();
+                None
             }
-            KeyCode::PageUp => {
+            KeyCode::Char('+') => {
                 if let Some(index) = self.state.selected() {
-                    return Some(ExamResultTableEvent::IncreasePoints(index));
-                    // if let Some(data) = self.items.get_mut(index) {
-                    //     data.inc_points();
-                    // }
+                    Some(Action::IncrementStudentPoints(
+                        self.data[index].name.clone(),
+                    ))
+                } else {
+                    None
                 }
             }
-            KeyCode::PageDown => {
+            KeyCode::Char('-') => {
                 if let Some(index) = self.state.selected() {
-                    return Some(ExamResultTableEvent::DecreasePoints(index));
-                    // if let Some(data) = self.items.get_mut(index) {
-                    //     data.dec_points();
-                    // }
+                    Some(Action::DecrementStudentPoints(
+                        self.data[index].name.clone(),
+                    ))
+                } else {
+                    None
                 }
             }
-            _ => {}
+            _ => None,
         }
-        None
     }
 }
 
@@ -111,7 +125,7 @@ impl Widget for &mut ExamResultTable {
             .style(THEME.table_header_style)
             .height(1);
 
-        let rows = self.items.iter().enumerate().map(|(i, data)| {
+        let rows = self.data.iter().enumerate().map(|(i, data)| {
             let row_style = match i % 2 {
                 0 => THEME.table_row_style.even,
                 _ => THEME.table_row_style.odd,

@@ -36,6 +36,20 @@ pub enum GradeScaleType {
     Custom([(u8, f64); 6]),
 }
 
+impl TryFrom<u8> for GradeScaleType {
+    type Error = GradingError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(GradeScaleType::IHK),
+            2 => Ok(GradeScaleType::TECHNIKER),
+            3 => Ok(GradeScaleType::LINEAR),
+            4 => Ok(GradeScaleType::Custom(IHK_BOUNDARIES)),
+            _ => Err(GradingError::InvalidGrade(value)),
+        }
+    }
+}
+
 impl GradeScaleType {
     // return the boundary values for a scale.
     pub fn values(&self) -> [(u8, f64); 6] {
@@ -135,7 +149,7 @@ impl GradingScale {
         self.total_points
     }
 
-    pub fn set_total_points(&mut self, total: f64) {
+    pub fn set_max_points(&mut self, total: f64) {
         self.total_points = total;
         self.recalculate();
     }

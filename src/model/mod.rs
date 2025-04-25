@@ -3,8 +3,9 @@ pub mod students;
 
 use std::{collections::HashMap, path::Path};
 
-use scale::{round_dp, GradeScaleType, GradingScale};
-use students::{Student, StudentList};
+use scale::{round_dp, Grade, GradeScaleType, GradingScale};
+use students::StudentList;
+use tracing::error;
 
 use crate::{
     action::Action,
@@ -16,7 +17,7 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct Model {
     pub scale: GradingScale,
-    student_list: Option<StudentList>,
+    student_list: StudentList,
 }
 
 impl Model {
@@ -25,16 +26,78 @@ impl Model {
 
         Self {
             scale,
-            student_list: None,
+            student_list: StudentList::default(),
         }
     }
 
-    pub fn load_student_data(&mut self, path: &Path) {
-        self.student_list = StudentList::from_csv_file(path).ok();
+    pub fn load_student_data(&mut self, path: &Path) -> std::io::Result<()> {
+        self.student_list = StudentList::from_csv_file(path)?;
+        Ok(())
     }
 
     pub fn update(&mut self, action: Action) {
-        todo!()
+        match action {
+            Action::ChangeScale(scale_action) => match scale_action {
+                crate::action::ScaleAction::IncrementThreshold(grade) => {
+                    if let Ok(grade) = Grade::try_from(grade) {
+                        self.scale.increment_points_for_grade(grade);
+                    }
+                }
+                crate::action::ScaleAction::DecrementThreshold(grade) => {
+                    if let Ok(grade) = Grade::try_from(grade) {
+                        self.scale.decrement_points_for_grade(grade);
+                    }
+                }
+                crate::action::ScaleAction::SetMaxPoints(points) => {
+                    self.scale.set_max_points(points as f64)
+                }
+                crate::action::ScaleAction::SetScale(value) => {
+                    if let Ok(scale_type) = GradeScaleType::try_from(value) {
+                        self.scale.change_scale_type(scale_type);
+                    }
+                }
+                crate::action::ScaleAction::ToggleHalfPoints => {
+                    self.scale.toggle_half_points();
+                }
+                crate::action::ScaleAction::IncrementMaxPoints => {
+                    self.scale.set_max_points(self.scale.max_points() + 1.0);
+                }
+                crate::action::ScaleAction::DecrementMaxPoints => {
+                    self.scale.set_max_points(self.scale.max_points() - 1.0);
+                }
+            },
+            Action::LoadStudentList(path_buf) => {
+                if let Err(e) = self.load_student_data(path_buf.as_path()) {
+                    error!("{}", e)
+                }
+            }
+            Action::ExportTo(path_buf) => todo!(),
+            Action::IncrementStudentPoints(name) => {
+                if let Some(student) = self.student_list.get_student_mut(&name) {
+                    let new_value = match self.scale.is_using_half_points() {
+                        true => student.total() + 0.5,
+                        false => student.total() + 1.0,
+                    };
+
+                    if new_value <= self.scale.max_points() {
+                        student.update_points(new_value);
+                    }
+                }
+            }
+            Action::DecrementStudentPoints(name) => {
+                if let Some(student) = self.student_list.get_student_mut(&name) {
+                    let new_value = match self.scale.is_using_half_points() {
+                        true => student.total() - 0.5,
+                        false => student.total() - 1.0,
+                    };
+
+                    if new_value <= self.scale.max_points() {
+                        student.update_points(new_value);
+                    }
+                }
+            }
+            _ => {} // ignore all other actions
+        }
     }
 
     pub fn get_scale_data(&self) -> Vec<GradingScaleTableRowData> {
@@ -53,40 +116,31 @@ impl Model {
             .collect()
     }
 
-    pub fn get_class_name(&self) -> String {
-        match self.student_list.clone() {
-            Some(list) => format!("{}", list),
-            None => "".into(),
-        }
+    pub fn get_class_name(&self) -> &str {
+        self.student_list.class_name()
     }
 
     pub fn get_student_data(&self) -> Vec<ExamResultTableRowData> {
-        match self.student_list.clone() {
-            Some(list) => {
-                let mut data = Vec::new();
-                for student in list.iter_students() {
-                    let points = student.total();
-                    let row = ExamResultTableRowData::new(
-                        &student.name,
-                        points,
-                        GradingScale::percentage_for_points(points, self.scale.max_points()),
-                        match self.scale.grade_for_points(points) {
-                            Some(grade) => grade.to_number(),
-                            None => 0,
-                        },
-                    );
-                    data.push(row);
-                }
-                data
-            }
-            None => Vec::new(),
+        let mut data = Vec::new();
+        for student in self.student_list.iter_students() {
+            let points = student.total();
+            let row = ExamResultTableRowData::new(
+                &student.name,
+                points,
+                GradingScale::percentage_for_points(points, self.scale.max_points()),
+                match self.scale.grade_for_points(points) {
+                    Some(grade) => grade.to_number(),
+                    None => 0,
+                },
+            );
+            data.push(row);
         }
+        data
     }
 
     pub fn grade_distribution(&self) -> HashMap<u8, usize> {
         let mut counts = HashMap::new();
-        let list = self.student_list.clone().unwrap();
-        for student in list.iter_students() {
+        for student in self.student_list.iter_students() {
             let grade = student.grade(&self.scale); // returns a u8
             counts
                 .entry(grade.to_number())

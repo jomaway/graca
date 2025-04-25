@@ -2,9 +2,8 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use layout::Flex;
 use ratatui::widgets::{Block, Tabs};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -12,56 +11,36 @@ use ratatui::prelude::*;
 use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
 use tracing::debug;
 
-use crate::action::{Action, UserEvent};
+use crate::action::{Action, ScaleAction};
 use crate::command::Commands;
 use crate::config::AppConfig;
 use crate::export::export;
-use crate::model::scale::{Grade, GradeScaleType, GradingScale};
-use crate::model::students::StudentList;
+use crate::model::scale::{Grade, GradeScaleType};
 use crate::model::Model;
-use crate::ui::exam_result_table::{ExamResultTable, ExamResultTableRowData};
+use crate::ui::exam_result_table::ExamResultTable;
 use crate::ui::exam_stats_chart::ExamChart;
 use crate::ui::grading_scale_table::GradingScaleTable;
 use crate::ui::theme::THEME;
+use crate::ui::AppTab;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppMode {
-    View,
-    Edit,
-    Command,
+    Normal,
+    Insert,
     // Help,
     Exited,
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
-pub enum SelectedTab {
-    #[default]
-    Scale,
-    Result,
-    Report,
-}
-
-impl SelectedTab {
-    pub fn to_string(&self) -> String {
-        match self {
-            SelectedTab::Scale => "Scale [1]".into(),
-            SelectedTab::Result => "Result [2]".into(),
-            SelectedTab::Report => "Report [3]".into(),
-        }
-    }
 }
 
 pub struct App {
     config: AppConfig,
     mode: AppMode,
     model: Model,
-    // calculator: GradeCalculator,
-    scale_table: GradingScaleTable,
-    result_table: ExamResultTable,
-    exam_chart: ExamChart,
+    scale_tab: GradingScaleTable,
+    results_tab: ExamResultTable,
+    report_tab: ExamChart,
     input_field: Input,
     status_msg: Option<String>,
-    selected_tab: SelectedTab,
+    selected_tab: AppTab,
 }
 
 impl App {
@@ -70,19 +49,21 @@ impl App {
         // todo: remove this
         let mut m = Model::new();
         m.load_student_data(PathBuf::from("data/TestStudents.csv").as_path());
-        let restab = ExamResultTable::new(&format!("{} 📔 MCR 📎 KA1", m.get_class_name()))
+        // &format!("{} 📔 MCR 📎 KA1", m.get_class_name())
+        let restab = ExamResultTable::new()
+            .with_title(&m.get_class_name())
             .with_data(m.get_student_data());
 
         Self {
             config: AppConfig::new(),
-            mode: AppMode::View,
+            mode: AppMode::Normal,
             model: m,
-            scale_table: GradingScaleTable::new(),
-            result_table: restab,
-            exam_chart: ExamChart::default(),
+            scale_tab: GradingScaleTable::new(),
+            results_tab: restab,
+            report_tab: ExamChart::default(),
             input_field: Input::default(),
             status_msg: None,
-            selected_tab: SelectedTab::default(),
+            selected_tab: AppTab::default(),
         }
     }
 
@@ -97,9 +78,14 @@ impl App {
         self
     }
 
+    pub fn init(mut self) -> Self {
+        self.update(Action::UpdateView);
+        self
+    }
+
     pub fn set_points(&mut self, points: u32) {
         // self.calculator.total_points = points;
-        self.model.scale.set_total_points(points as f64);
+        self.model.scale.set_max_points(points as f64);
     }
 
     fn change_scale(&mut self, scale: GradeScaleType) {
@@ -109,22 +95,40 @@ impl App {
 
     fn update_accent_color(&mut self) {
         let scale = self.model.scale.scale_type();
-        self.scale_table.set_accent_color(scale.color());
-        self.result_table.set_accent_color(scale.color());
-        self.exam_chart.set_accent_color(scale.color());
+        self.scale_tab.set_accent_color(scale.color());
+        self.results_tab.set_accent_color(scale.color());
+        self.report_tab.set_accent_color(scale.color());
     }
 
     fn update(&mut self, action: Action) {
-        // debug!("AVG: {}", self.model.grade_average());
-        let mut chart_data = [0u8; 6];
-        for (grade, count) in self.model.grade_distribution() {
-            if (1..=6).contains(&grade) {
-                chart_data[(grade - 1) as usize] = count as u8;
+        debug!("ACTION: {}", action);
+
+        match action {
+            Action::Quit => self.exit(),
+            Action::ProcessCommand(_) => todo!(),
+            Action::EnterCommandMode => self.enter_command_mode(),
+            Action::LeaveCommandMode => self.leave_command_mode(),
+            Action::SwitchTab(selected_tab) => {
+                self.selected_tab = selected_tab;
+                self.update(Action::UpdateView);
+            }
+            Action::UpdateView => {
+                let mut chart_data = [0u8; 6];
+                for (grade, count) in self.model.grade_distribution() {
+                    if (1..=6).contains(&grade) {
+                        chart_data[(grade - 1) as usize] = count as u8;
+                    }
+                }
+                self.report_tab.set_data(&chart_data);
+                self.results_tab.set_data(self.model.get_student_data());
+                self.scale_tab.update(self.model.get_scale_data());
+                self.update_accent_color();
+            }
+            _ => {
+                self.model.update(action);
+                self.update(Action::UpdateView);
             }
         }
-        self.exam_chart.set_data(&chart_data);
-        self.result_table.set_data(self.model.get_student_data());
-        self.scale_table.update(self.model.get_scale_data());
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -158,9 +162,9 @@ impl App {
             .areas(main_area);
 
         match self.selected_tab {
-            SelectedTab::Scale => self.scale_table.render(table_area, frame.buffer_mut()),
-            SelectedTab::Result => self.result_table.render(table_area, frame.buffer_mut()),
-            SelectedTab::Report => self.exam_chart.render(table_area, frame.buffer_mut()),
+            AppTab::Scale => self.scale_tab.render(table_area, frame.buffer_mut()),
+            AppTab::Result => self.results_tab.render(table_area, frame.buffer_mut()),
+            AppTab::Report => self.report_tab.render(table_area, frame.buffer_mut()),
         }
 
         // BOTTOM
@@ -196,16 +200,21 @@ impl App {
     }
 
     fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
-        let titles = SelectedTab::iter().map(|tab| tab.to_string());
+        let titles = AppTab::iter().map(|tab| tab.to_string());
         let selected_tab_index = self.selected_tab as usize;
         Tabs::new(titles)
             .select(selected_tab_index)
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
             .divider("»")
             .render(area, buf);
     }
 
     fn render_command_bar(&self, area: Rect, buf: &mut Buffer) {
-        let text = if self.mode == AppMode::Command {
+        let text = if self.mode == AppMode::Insert {
             format!(">>> {}", self.input_field.value())
         } else if let Some(msg) = &self.status_msg {
             format!("Status: {}", msg)
@@ -251,8 +260,9 @@ impl App {
             // it's important to check that the event is a key press event as
             // crossterm also emits key release and repeat events on Windows.
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event);
-                self.update(Action::User(UserEvent::SwitchTab(SelectedTab::Report)));
+                if let Some(action) = self.handle_key_event(key_event) {
+                    self.update(action);
+                }
             }
             _ => {}
         };
@@ -261,12 +271,12 @@ impl App {
 
     fn leave_command_mode(&mut self) {
         self.input_field.reset();
-        self.mode = AppMode::View;
+        self.mode = AppMode::Normal;
     }
 
     fn enter_command_mode(&mut self) {
         self.status_msg = None;
-        self.mode = AppMode::Command;
+        self.mode = AppMode::Insert;
     }
 
     fn execute_command(&mut self) {
@@ -288,7 +298,7 @@ impl App {
         }
     }
 
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<Action> {
         // Terminate with CTRL+C
         if key_event.modifiers == KeyModifiers::CONTROL {
             if key_event.code == KeyCode::Char('c') {
@@ -297,100 +307,48 @@ impl App {
             }
         }
 
-        match key_event.code {
-            KeyCode::F(1) => {
-                self.selected_tab = SelectedTab::Scale;
-            }
-            KeyCode::F(2) => {
-                self.selected_tab = SelectedTab::Result;
-            }
-            KeyCode::F(3) => {
-                self.selected_tab = SelectedTab::Report;
-            }
-            _ => {}
-        }
-
         match self.mode {
-            AppMode::Command => match key_event.code {
-                KeyCode::Esc => self.leave_command_mode(),
+            AppMode::Insert => match key_event.code {
+                KeyCode::Esc => Some(Action::LeaveCommandMode),
                 KeyCode::Enter => {
                     self.execute_command();
-                    self.leave_command_mode();
+                    Some(Action::LeaveCommandMode)
                 }
                 _ => {
                     self.input_field.handle_event(&Event::Key(key_event));
+                    None
                 }
             },
-            AppMode::View => match key_event.code {
-                KeyCode::Char(':') => self.enter_command_mode(),
-                KeyCode::Char('p') => {
-                    self.input_field = "set-points ".into();
-                    self.enter_command_mode();
+            AppMode::Normal => match key_event.code {
+                KeyCode::F(1) => {
+                    // self.selected_tab = SelectedTab::Scale;
+                    Some(Action::SwitchTab(AppTab::Scale))
                 }
-                KeyCode::Char('e') => {
-                    self.input_field = "export-to ".into();
-                    self.enter_command_mode();
+                KeyCode::F(2) => {
+                    // self.selected_tab = SelectedTab::Result;
+                    Some(Action::SwitchTab(AppTab::Result))
                 }
+                KeyCode::F(3) => {
+                    // self.selected_tab = SelectedTab::Report;
+                    Some(Action::SwitchTab(AppTab::Report))
+                }
+                KeyCode::Char(':') => Some(Action::EnterCommandMode),
+                KeyCode::Char('I') => Some(Action::ChangeScale(ScaleAction::SetScale(1))),
+                KeyCode::Char('T') => Some(Action::ChangeScale(ScaleAction::SetScale(2))),
+                KeyCode::Char('L') => Some(Action::ChangeScale(ScaleAction::SetScale(3))),
+                KeyCode::Char('C') => Some(Action::ChangeScale(ScaleAction::SetScale(4))),
 
-                KeyCode::Char('I') => self.change_scale(GradeScaleType::IHK),
-                KeyCode::Char('T') => self.change_scale(GradeScaleType::TECHNIKER),
-                KeyCode::Char('L') => self.change_scale(GradeScaleType::LINEAR),
-                KeyCode::Char('C') => self.change_scale(self.model.scale.scale_type().to_custom()),
+                KeyCode::Char('.') => Some(Action::ChangeScale(ScaleAction::ToggleHalfPoints)),
 
-                KeyCode::Char('.') => self.model.scale.toggle_half_points(),
+                KeyCode::Char('q') => Some(Action::Quit),
 
-                KeyCode::Char('q') => self.exit(),
                 _ => match self.selected_tab {
-                    SelectedTab::Scale => match key_event.code {
-                        KeyCode::Down | KeyCode::Char('j') => self.scale_table.state.select_next(),
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            self.scale_table.state.select_previous()
-                        }
-                        KeyCode::Left | KeyCode::Char('h') => self.scale_table.select_col_min(),
-                        KeyCode::Right | KeyCode::Char('l') => self.scale_table.select_col_max(),
-                        KeyCode::Esc => self.scale_table.state.select_column(None),
-                        KeyCode::PageUp => {
-                            self.set_points(self.model.scale.max_points() as u32 + 1)
-                        }
-
-                        KeyCode::Char('+') => self.increase_points(),
-                        KeyCode::PageDown => {
-                            self.set_points(self.model.scale.max_points() as u32 - 1)
-                        }
-                        KeyCode::Char('-') => self.decrease_points(),
-                        _ => {}
-                    },
-                    SelectedTab::Result => {
-                        self.result_table.handle_event(key_event);
-                    }
-                    SelectedTab::Report => {}
+                    AppTab::Scale => self.scale_tab.handle_event(key_event),
+                    AppTab::Result => self.results_tab.handle_event(key_event),
+                    AppTab::Report => None,
                 },
             },
-            _ => {}
-        }
-    }
-
-    fn increase_points(&mut self) {
-        match self.scale_table.selected() {
-            Some(grade) => {
-                self.model
-                    .scale
-                    .increment_points_for_grade(Grade::try_from(grade).unwrap());
-                self.update_accent_color();
-            }
-            None => {}
-        }
-    }
-
-    fn decrease_points(&mut self) {
-        match self.scale_table.selected() {
-            Some(grade) => {
-                self.model
-                    .scale
-                    .decrement_points_for_grade(Grade::try_from(grade).unwrap());
-                self.update_accent_color();
-            }
-            None => {}
+            _ => None,
         }
     }
 

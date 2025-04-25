@@ -1,51 +1,31 @@
 use std::path::PathBuf;
 
-use crossterm::event::KeyEvent;
-use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
-use crate::app::SelectedTab;
+use crate::ui::AppTab;
 
 #[derive(Debug, Clone, PartialEq, Eq, Display)]
 pub enum Action {
-    Tick,
-    Render,
-    Resize(u16, u16),
-    Suspend,
-    Resume,
     Quit,
-    ClearScreen,
-    Error(String),
-    Help,
-    User(UserEvent),
     ProcessCommand(String),
+    EnterCommandMode,
+    LeaveCommandMode,
+    SwitchTab(AppTab),
+    UpdateView,
+    ChangeScale(ScaleAction),
+    LoadStudentList(PathBuf),
+    ExportTo(PathBuf),
+    IncrementStudentPoints(String),
+    DecrementStudentPoints(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display)]
-pub enum UserEvent {
-    IncrementThreshold(usize),
-    DecrementThreshold(usize),
+pub enum ScaleAction {
+    IncrementThreshold(u8), // u8 repr grade for which the threshold should be changed
+    DecrementThreshold(u8), // u8 repr grade for which the threshold should be changed
+    IncrementMaxPoints,
+    DecrementMaxPoints,
     SetMaxPoints(u16),
-    SetScale(usize),
-    LoadStudentList(PathBuf),
-    ExportTo(PathBuf),
-    SwitchTab(SelectedTab),
-    Table(TableEvents),
-    StudentResults(ExamResultEvents),
-    IncrementPoints(usize),
-    DecrementPoints(usize),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
-pub enum TableEvents {
-    FirstRow,
-    LastRow,
-    NextRow,
-    PrevRow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
-pub enum ExamResultEvents {
-    AddStudent(String),
-    RenameStudent(String),
+    ToggleHalfPoints,
+    SetScale(u8), // u8 repr grade. See GradeScaleType::try_from()
 }
