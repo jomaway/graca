@@ -4,6 +4,7 @@ use ratatui::widgets::{Block, Tabs};
 use std::io;
 use std::path::PathBuf;
 use strum::IntoEnumIterator;
+use style::palette::tailwind::BLACK;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -20,7 +21,7 @@ use crate::model::Model;
 use crate::ui::exam_result_table::ExamResultTable;
 use crate::ui::exam_stats_chart::ExamChart;
 use crate::ui::grading_scale_table::GradingScaleTable;
-use crate::ui::theme::THEME;
+use crate::ui::theme::{DARK_WHITE, LIGHT_GRAY, THEME};
 use crate::ui::AppTab;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -183,21 +184,39 @@ impl App {
     fn render_header_bar(&self, area: Rect, buf: &mut Buffer) {
         Block::default().style(THEME.bar_style).render(area, buf);
 
-        let text = format!(" {} ", self.model.scale.scale_type().text());
+        // let text = format!(" {} ", self.model.scale.scale_type().text());
+        let scale_identifier_text = format!(" {} ", self.model.scale.scale_type().text());
+        let point_identifier_text = format!(" {} PTs ", self.model.scale.max_points());
+        let half_identifier_text = match self.model.scale.is_using_half_points() {
+            true => ".",
+            false => "",
+        };
         let color = self.model.scale.scale_type().color();
 
-        let [identifier_area, _, tabs_area, version_area] = Layout::horizontal([
-            Constraint::Min(text.len() as u16),
-            Constraint::Length(1),
+        let [identifier_area, tabs_area, version_area] = Layout::horizontal([
+            Constraint::Min(
+                (scale_identifier_text.len()
+                    + point_identifier_text.len()
+                    + half_identifier_text.len()) as u16,
+            ),
             Constraint::Percentage(100),
             Constraint::Length(12),
         ])
         .areas(area);
 
-        let identifier = Paragraph::new(text).style(Style::default().fg(Color::Black).bg(color));
+        let scale_identifier =
+            Span::from(scale_identifier_text).style(Style::default().fg(BLACK).bg(color));
+        let point_identifier =
+            Span::from(point_identifier_text).style(Style::default().fg(DARK_WHITE).bg(LIGHT_GRAY));
+        let half_identifier =
+            Span::from(half_identifier_text).style(Style::default().fg(BLACK).bg(Color::Magenta));
+
+        let identifier =
+            Line::default().spans([scale_identifier, point_identifier, half_identifier]);
+
         let version = Paragraph::new(format!(
-            "{} {}",
-            env!("CARGO_PKG_NAME"),
+            "{}::{}",
+            env!("CARGO_PKG_NAME").to_uppercase(),
             env!("CARGO_PKG_VERSION")
         ))
         .right_aligned();
@@ -208,6 +227,10 @@ impl App {
     }
 
     fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+        let [tabs_area] = Layout::horizontal([Constraint::Max(80)])
+            .flex(Flex::Center)
+            .areas(area);
+
         let titles = AppTab::iter().map(|tab| tab.to_string());
         let selected_tab_index = self.selected_tab as usize;
         Tabs::new(titles)
@@ -218,7 +241,7 @@ impl App {
                     .add_modifier(Modifier::BOLD),
             )
             .divider("»")
-            .render(area, buf);
+            .render(tabs_area, buf);
     }
 
     fn render_command_bar(&self, area: Rect, buf: &mut Buffer) {

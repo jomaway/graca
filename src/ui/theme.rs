@@ -65,8 +65,8 @@ pub const THEME: Theme = Theme {
     },
 };
 
-const DARK_WHITE: Color = Color::Rgb(213, 196, 161);
-const LIGHT_GRAY: Color = Color::Rgb(80, 73, 69);
+pub const DARK_WHITE: Color = Color::Rgb(213, 196, 161);
+pub const LIGHT_GRAY: Color = Color::Rgb(80, 73, 69);
 const GRAY: Color = Color::Rgb(60, 56, 54);
 // const MID_GRAY: Color = Color::Rgb(128, 128, 128);
 const DARK_GRAY: Color = Color::Rgb(68, 68, 68);

@@ -54,6 +54,13 @@ impl Widget for &ExamChart {
             })
             .collect();
 
+        let clamped_area = Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: std::cmp::min(30, area.height), // clamp height to 21 if area is bigger.
+        };
+
         BarChart::default()
             .block(block)
             .data(BarGroup::default().bars(&bars))
@@ -61,6 +68,6 @@ impl Widget for &ExamChart {
             .style(THEME.bar_chart_style.chart)
             .label_style(THEME.bar_chart_style.label)
             .direction(Direction::Vertical)
-            .render(area, buf);
+            .render(clamped_area, buf);
     }
 }
