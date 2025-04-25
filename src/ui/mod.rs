@@ -1,12 +1,12 @@
 use exam_result_table::ExamResultTable;
-use exam_stats_chart::ExamChart;
 use grading_scale_table::GradingScaleTable;
+use report_tab::ExamChart;
 use strum_macros::EnumIter;
 use tui_input::Input;
 
 pub mod exam_result_table;
-pub mod exam_stats_chart;
 pub mod grading_scale_table;
+pub mod report_tab;
 pub mod theme;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]

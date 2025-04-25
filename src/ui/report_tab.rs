@@ -1,17 +1,18 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Direction, Rect},
-    style::Color,
-    text::Line,
-    widgets::{Bar, BarChart, BarGroup, Block, BorderType, Borders, Widget},
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Bar, BarChart, BarGroup, Block, BorderType, Borders, Padding, Paragraph, Widget},
 };
 
-use super::theme::THEME;
+use super::theme::{LIGHT_GRAY, THEME};
 
 #[derive(Debug, Default, Clone)]
 pub struct ExamChart {
     data: [u8; 6],
     accent_color: Color,
+    avg: f64,
 }
 
 impl ExamChart {
@@ -21,8 +22,9 @@ impl ExamChart {
         s
     }
 
-    pub fn set_data(&mut self, values: &[u8; 6]) {
+    pub fn set_data(&mut self, values: &[u8; 6], avg: f64) {
         self.data = values.to_owned();
+        self.avg = avg;
     }
 
     pub fn set_accent_color(&mut self, color: Color) {
@@ -37,9 +39,20 @@ impl Widget for &ExamChart {
     {
         let block = Block::new()
             .title(Line::raw(" 📊 Grade Distribution "))
+            .title_bottom(
+                Line::from(format!(" AVG: {} ", self.avg))
+                    .right_aligned()
+                    .style(Style::default().bg(LIGHT_GRAY)),
+            )
             .title_style(THEME.block_title_style)
             .borders(Borders::ALL)
-            .border_type(BorderType::Plain);
+            .border_type(BorderType::Plain)
+            .padding(Padding {
+                left: 2,
+                right: 3,
+                top: 1,
+                bottom: 1,
+            });
 
         let bars: Vec<Bar> = self
             .data
@@ -64,7 +77,7 @@ impl Widget for &ExamChart {
         BarChart::default()
             .block(block)
             .data(BarGroup::default().bars(&bars))
-            .bar_width((area.width - 4) / 6)
+            .bar_width((area.width - 9) / 6)
             .style(THEME.bar_chart_style.chart)
             .label_style(THEME.bar_chart_style.label)
             .direction(Direction::Vertical)

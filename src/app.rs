@@ -16,8 +16,8 @@ use crate::config::AppConfig;
 use crate::model::scale::GradeScaleType;
 use crate::model::Model;
 use crate::ui::exam_result_table::ExamResultTable;
-use crate::ui::exam_stats_chart::ExamChart;
 use crate::ui::grading_scale_table::GradingScaleTable;
+use crate::ui::report_tab::ExamChart;
 use crate::ui::theme::{BLACK, DARK_WHITE, LIGHT_GRAY, THEME};
 use crate::ui::AppTab;
 
@@ -116,7 +116,8 @@ impl App {
                         chart_data[(grade - 1) as usize] = count as u8;
                     }
                 }
-                self.report_tab.set_data(&chart_data);
+                self.report_tab
+                    .set_data(&chart_data, self.model.grade_average());
                 self.results_tab.set_data(self.model.get_student_data());
                 self.scale_tab.update(self.model.get_scale_data());
                 self.update_accent_color();
