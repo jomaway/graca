@@ -39,12 +39,16 @@ impl Model {
         match action {
             ModelAction::IncrementThreshold(grade) => {
                 if let Ok(grade) = Grade::try_from(grade) {
-                    self.scale.increment_points_for_grade(grade);
+                    self.scale
+                        .increment_points_for_grade(grade)
+                        .expect("Grade not found");
                 }
             }
             ModelAction::DecrementThreshold(grade) => {
                 if let Ok(grade) = Grade::try_from(grade) {
-                    self.scale.decrement_points_for_grade(grade);
+                    self.scale
+                        .decrement_points_for_grade(grade)
+                        .expect("Grade not found");
                 }
             }
             ModelAction::SetMaxPoints(points) => self.scale.set_max_points(points as f64),
@@ -97,7 +101,14 @@ impl Model {
             .map(|(grade, &min)| {
                 let pct = GradingScale::percentage_for_points(min, self.scale.max_points());
 
-                let max = last_min;
+                let max = if *grade == Grade::VeryGood {
+                    last_min
+                } else {
+                    match self.scale.is_using_half_points() {
+                        true => last_min - 0.5,
+                        false => last_min - 1.0,
+                    }
+                };
                 last_min = min;
 
                 GradingScaleTableRowData::new(grade.to_number(), min, max, pct)
