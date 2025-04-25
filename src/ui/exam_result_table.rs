@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 use super::theme::THEME;
-use crate::action::Action;
+use crate::action::{Action, ModelAction};
 use tracing::debug;
 
 const ITEM_HEIGHT: usize = 4;
@@ -88,18 +88,18 @@ impl ExamResultTable {
             }
             KeyCode::Char('+') => {
                 if let Some(index) = self.state.selected() {
-                    Some(Action::IncrementStudentPoints(
+                    Some(Action::UpdateModel(ModelAction::IncrementStudentPoints(
                         self.data[index].name.clone(),
-                    ))
+                    )))
                 } else {
                     None
                 }
             }
             KeyCode::Char('-') => {
                 if let Some(index) = self.state.selected() {
-                    Some(Action::DecrementStudentPoints(
+                    Some(Action::UpdateModel(ModelAction::DecrementStudentPoints(
                         self.data[index].name.clone(),
-                    ))
+                    )))
                 } else {
                     None
                 }

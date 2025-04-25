@@ -7,20 +7,17 @@ use crate::ui::AppTab;
 #[derive(Debug, Clone, PartialEq, Eq, Display)]
 pub enum Action {
     Quit,
-    ProcessCommand(String),
-    EnterCommandMode,
-    LeaveCommandMode,
+    EnterInsertMode,
+    LeaveInsertMode,
     SwitchTab(AppTab),
     UpdateView,
-    ChangeScale(ScaleAction),
+    UpdateModel(ModelAction),
     LoadStudentList(PathBuf),
     ExportTo(PathBuf),
-    IncrementStudentPoints(String),
-    DecrementStudentPoints(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display)]
-pub enum ScaleAction {
+pub enum ModelAction {
     IncrementThreshold(u8), // u8 repr grade for which the threshold should be changed
     DecrementThreshold(u8), // u8 repr grade for which the threshold should be changed
     IncrementMaxPoints,
@@ -28,4 +25,6 @@ pub enum ScaleAction {
     SetMaxPoints(u16),
     ToggleHalfPoints,
     SetScale(u8), // u8 repr grade. See GradeScaleType::try_from()
+    IncrementStudentPoints(String),
+    DecrementStudentPoints(String),
 }

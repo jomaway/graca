@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 use super::theme::THEME;
-use crate::action::{Action, ScaleAction};
+use crate::action::{Action, ModelAction};
 use tracing::debug;
 
 pub struct GradingScaleTable {
@@ -75,7 +75,7 @@ impl GradingScaleTable {
             }
             KeyCode::Char('+') => {
                 if let Some(index) = self.state.selected() {
-                    Some(Action::ChangeScale(ScaleAction::IncrementThreshold(
+                    Some(Action::UpdateModel(ModelAction::IncrementThreshold(
                         self.data[index].grade,
                     )))
                 } else {
@@ -84,15 +84,15 @@ impl GradingScaleTable {
             }
             KeyCode::Char('-') => {
                 if let Some(index) = self.state.selected() {
-                    Some(Action::ChangeScale(ScaleAction::DecrementThreshold(
+                    Some(Action::UpdateModel(ModelAction::DecrementThreshold(
                         self.data[index].grade,
                     )))
                 } else {
                     None
                 }
             }
-            KeyCode::PageUp => Some(Action::ChangeScale(ScaleAction::IncrementMaxPoints)),
-            KeyCode::PageDown => Some(Action::ChangeScale(ScaleAction::DecrementMaxPoints)),
+            KeyCode::PageUp => Some(Action::UpdateModel(ModelAction::IncrementMaxPoints)),
+            KeyCode::PageDown => Some(Action::UpdateModel(ModelAction::DecrementMaxPoints)),
             _ => None,
         }
     }

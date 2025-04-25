@@ -11,7 +11,7 @@ use ratatui::prelude::*;
 use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
 use tracing::debug;
 
-use crate::action::{Action, ScaleAction};
+use crate::action::{Action, ModelAction};
 use crate::command::Commands;
 use crate::config::AppConfig;
 use crate::export::export;
@@ -105,9 +105,8 @@ impl App {
 
         match action {
             Action::Quit => self.exit(),
-            Action::ProcessCommand(_) => todo!(),
-            Action::EnterCommandMode => self.enter_command_mode(),
-            Action::LeaveCommandMode => self.leave_command_mode(),
+            Action::EnterInsertMode => self.enter_insert_mode(),
+            Action::LeaveInsertMode => self.leave_insert_mode(),
             Action::SwitchTab(selected_tab) => {
                 self.selected_tab = selected_tab;
                 self.update(Action::UpdateView);
@@ -124,10 +123,19 @@ impl App {
                 self.scale_tab.update(self.model.get_scale_data());
                 self.update_accent_color();
             }
-            _ => {
-                self.model.update(action);
+            Action::LoadStudentList(path_buf) => {
+                self.model
+                    .load_student_data(path_buf.as_path())
+                    .expect(&format!(
+                        "Could not load student data from path '{}'",
+                        path_buf.display()
+                    ));
+            }
+            Action::UpdateModel(act) => {
+                self.model.update(act);
                 self.update(Action::UpdateView);
             }
+            _ => {}
         }
     }
 
@@ -269,12 +277,12 @@ impl App {
         Ok(())
     }
 
-    fn leave_command_mode(&mut self) {
+    fn leave_insert_mode(&mut self) {
         self.input_field.reset();
         self.mode = AppMode::Normal;
     }
 
-    fn enter_command_mode(&mut self) {
+    fn enter_insert_mode(&mut self) {
         self.status_msg = None;
         self.mode = AppMode::Insert;
     }
@@ -309,10 +317,10 @@ impl App {
 
         match self.mode {
             AppMode::Insert => match key_event.code {
-                KeyCode::Esc => Some(Action::LeaveCommandMode),
+                KeyCode::Esc => Some(Action::LeaveInsertMode),
                 KeyCode::Enter => {
                     self.execute_command();
-                    Some(Action::LeaveCommandMode)
+                    Some(Action::LeaveInsertMode)
                 }
                 _ => {
                     self.input_field.handle_event(&Event::Key(key_event));
@@ -332,13 +340,13 @@ impl App {
                     // self.selected_tab = SelectedTab::Report;
                     Some(Action::SwitchTab(AppTab::Report))
                 }
-                KeyCode::Char(':') => Some(Action::EnterCommandMode),
-                KeyCode::Char('I') => Some(Action::ChangeScale(ScaleAction::SetScale(1))),
-                KeyCode::Char('T') => Some(Action::ChangeScale(ScaleAction::SetScale(2))),
-                KeyCode::Char('L') => Some(Action::ChangeScale(ScaleAction::SetScale(3))),
-                KeyCode::Char('C') => Some(Action::ChangeScale(ScaleAction::SetScale(4))),
+                KeyCode::Char(':') => Some(Action::EnterInsertMode),
+                KeyCode::Char('I') => Some(Action::UpdateModel(ModelAction::SetScale(1))),
+                KeyCode::Char('T') => Some(Action::UpdateModel(ModelAction::SetScale(2))),
+                KeyCode::Char('L') => Some(Action::UpdateModel(ModelAction::SetScale(3))),
+                KeyCode::Char('C') => Some(Action::UpdateModel(ModelAction::SetScale(4))),
 
-                KeyCode::Char('.') => Some(Action::ChangeScale(ScaleAction::ToggleHalfPoints)),
+                KeyCode::Char('.') => Some(Action::UpdateModel(ModelAction::ToggleHalfPoints)),
 
                 KeyCode::Char('q') => Some(Action::Quit),
 

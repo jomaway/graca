@@ -1,5 +1,17 @@
 use ratatui::style::{Color, Modifier, Style};
 
+// pub struct ColorSchema {
+//     accent_color: Color,
+//     tab: Style,
+//     tab_selected: Style,
+//     block_title_focused: Style,
+//     block_focused: Style,
+//     table_header: Style,
+//     table_row_even: Style,
+//     table_row_odd: Style,
+//     bar_chart: Style,
+// }
+
 pub struct Theme {
     pub default_accent_color: Color,
     pub key_binding: KeyBinding,

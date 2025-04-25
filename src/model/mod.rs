@@ -8,7 +8,7 @@ use students::StudentList;
 use tracing::error;
 
 use crate::{
-    action::Action,
+    action::{Action, ModelAction},
     ui::{
         exam_result_table::ExamResultTableRowData, grading_scale_table::GradingScaleTableRowData,
     },
@@ -35,44 +35,34 @@ impl Model {
         Ok(())
     }
 
-    pub fn update(&mut self, action: Action) {
+    pub fn update(&mut self, action: ModelAction) {
         match action {
-            Action::ChangeScale(scale_action) => match scale_action {
-                crate::action::ScaleAction::IncrementThreshold(grade) => {
-                    if let Ok(grade) = Grade::try_from(grade) {
-                        self.scale.increment_points_for_grade(grade);
-                    }
-                }
-                crate::action::ScaleAction::DecrementThreshold(grade) => {
-                    if let Ok(grade) = Grade::try_from(grade) {
-                        self.scale.decrement_points_for_grade(grade);
-                    }
-                }
-                crate::action::ScaleAction::SetMaxPoints(points) => {
-                    self.scale.set_max_points(points as f64)
-                }
-                crate::action::ScaleAction::SetScale(value) => {
-                    if let Ok(scale_type) = GradeScaleType::try_from(value) {
-                        self.scale.change_scale_type(scale_type);
-                    }
-                }
-                crate::action::ScaleAction::ToggleHalfPoints => {
-                    self.scale.toggle_half_points();
-                }
-                crate::action::ScaleAction::IncrementMaxPoints => {
-                    self.scale.set_max_points(self.scale.max_points() + 1.0);
-                }
-                crate::action::ScaleAction::DecrementMaxPoints => {
-                    self.scale.set_max_points(self.scale.max_points() - 1.0);
-                }
-            },
-            Action::LoadStudentList(path_buf) => {
-                if let Err(e) = self.load_student_data(path_buf.as_path()) {
-                    error!("{}", e)
+            ModelAction::IncrementThreshold(grade) => {
+                if let Ok(grade) = Grade::try_from(grade) {
+                    self.scale.increment_points_for_grade(grade);
                 }
             }
-            Action::ExportTo(path_buf) => todo!(),
-            Action::IncrementStudentPoints(name) => {
+            ModelAction::DecrementThreshold(grade) => {
+                if let Ok(grade) = Grade::try_from(grade) {
+                    self.scale.decrement_points_for_grade(grade);
+                }
+            }
+            ModelAction::SetMaxPoints(points) => self.scale.set_max_points(points as f64),
+            ModelAction::SetScale(value) => {
+                if let Ok(scale_type) = GradeScaleType::try_from(value) {
+                    self.scale.change_scale_type(scale_type);
+                }
+            }
+            ModelAction::ToggleHalfPoints => {
+                self.scale.toggle_half_points();
+            }
+            ModelAction::IncrementMaxPoints => {
+                self.scale.set_max_points(self.scale.max_points() + 1.0);
+            }
+            ModelAction::DecrementMaxPoints => {
+                self.scale.set_max_points(self.scale.max_points() - 1.0);
+            }
+            ModelAction::IncrementStudentPoints(name) => {
                 if let Some(student) = self.student_list.get_student_mut(&name) {
                     let new_value = match self.scale.is_using_half_points() {
                         true => student.total() + 0.5,
@@ -84,7 +74,7 @@ impl Model {
                     }
                 }
             }
-            Action::DecrementStudentPoints(name) => {
+            ModelAction::DecrementStudentPoints(name) => {
                 if let Some(student) = self.student_list.get_student_mut(&name) {
                     let new_value = match self.scale.is_using_half_points() {
                         true => student.total() - 0.5,
@@ -96,7 +86,6 @@ impl Model {
                     }
                 }
             }
-            _ => {} // ignore all other actions
         }
     }
 
