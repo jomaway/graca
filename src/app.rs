@@ -18,7 +18,7 @@ use crate::model::Model;
 use crate::ui::exam_result_table::ExamResultTable;
 use crate::ui::grading_scale_table::GradingScaleTable;
 use crate::ui::report_tab::ExamChart;
-use crate::ui::theme::{BLACK, DARK_WHITE, LIGHT_GRAY, THEME};
+use crate::ui::theme::{AppStyle, THEME};
 use crate::ui::AppTab;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -134,10 +134,9 @@ impl App {
                 self.model.update(act);
                 self.update(Action::UpdateView);
             }
-            Action::ExportTo(path_buf) => {
+            Action::ExportTo(_) => {
                 todo!();
             }
-            _ => {}
         }
     }
 
@@ -180,7 +179,7 @@ impl App {
     }
 
     fn render_header_bar(&self, area: Rect, buf: &mut Buffer) {
-        Block::default().style(THEME.bar_style).render(area, buf);
+        Block::default().style(THEME.top_bar()).render(area, buf);
 
         // let text = format!(" {} ", self.model.scale.scale_type().text());
         let scale_identifier_text = format!(" {} ", self.model.scale.scale_type().text());
@@ -189,7 +188,6 @@ impl App {
             true => ".",
             false => "",
         };
-        let color = self.model.scale.scale_type().color();
 
         let [identifier_area, tabs_area, version_area] = Layout::horizontal([
             Constraint::Min(
@@ -202,12 +200,10 @@ impl App {
         ])
         .areas(area);
 
-        let scale_identifier =
-            Span::from(scale_identifier_text).style(Style::default().fg(BLACK).bg(color));
-        let point_identifier =
-            Span::from(point_identifier_text).style(Style::default().fg(DARK_WHITE).bg(LIGHT_GRAY));
-        let half_identifier =
-            Span::from(half_identifier_text).style(Style::default().fg(BLACK).bg(Color::Magenta));
+        let scale_identifier = Span::from(scale_identifier_text)
+            .style(THEME.indicator(Some(self.model.scale.scale_type())));
+        let point_identifier = Span::from(point_identifier_text).style(THEME.tag(false));
+        let half_identifier = Span::from(half_identifier_text).style(THEME.indicator(None));
 
         let identifier =
             Line::default().spans([scale_identifier, point_identifier, half_identifier]);
@@ -233,41 +229,35 @@ impl App {
         let selected_tab_index = self.selected_tab as usize;
         Tabs::new(titles)
             .select(selected_tab_index)
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .style(Style::default())
+            .highlight_style(THEME.tab(true))
+            .style(THEME.tab(false))
             .divider("»")
             .render(tabs_area, buf);
     }
 
     fn render_help_bar(area: Rect, buf: &mut Buffer) {
-        let mut keys: Vec<(&str, &str, Color)> = GradeScaleType::iter()
-            .map(|s| (s.key_binding(), s.text(), s.color()))
-            .collect();
-
-        keys.push(("Q", "Quit", Color::Magenta));
-
-        let spans: Vec<Span> = keys
-            .iter()
-            .flat_map(|(key, desc, color)| {
-                let key = Span::styled(
-                    format!(" {key} "),
-                    THEME.key_binding.key.bg(color.to_owned()),
-                );
-                let desc = Span::styled(
-                    format!(" {desc} "),
-                    THEME.key_binding.description.fg(color.to_owned()),
-                );
-                [key, desc]
+        let mut spans: Vec<Span> = GradeScaleType::iter()
+            .flat_map(|scale_type| {
+                [
+                    Span::styled(
+                        format!(" {} ", scale_type.key_binding()),
+                        THEME.indicator(Some(&scale_type)),
+                    ),
+                    Span::styled(
+                        format!(" {} ", scale_type.text()),
+                        THEME.indicator(Some(&scale_type)).reversed(),
+                    ),
+                ]
             })
             .collect();
 
+        spans.push(Span::styled(" Q ", THEME.indicator(None)));
+
+        spans.push(Span::styled(" Quit ", THEME.indicator(None).reversed()));
+
         Line::from(spans)
             .centered()
-            .style((Color::Indexed(236), Color::Indexed(232)))
+            .style(THEME.bottom_bar())
             .render(area, buf);
     }
 
@@ -294,25 +284,6 @@ impl App {
         self.status_msg = None;
         self.mode = AppMode::Insert;
     }
-
-    // fn execute_command(&mut self) {
-    //     match Commands::parse(self.input_field.value()) {
-    //         Ok(Commands::SetMaxPoints(points)) => {
-    //             self.status_msg = Some(format!("set max points to {}:", points));
-    //             self.set_points(points);
-    //         }
-    //         Ok(Commands::Export(path_buf)) => {
-    //             self.status_msg = Some(format!("export to{}", path_buf.display()));
-    //             match export(path_buf.as_path(), &self.model.get_scale_data()) {
-    //                 Ok(_) => {
-    //                     self.status_msg = Some(format!("exportet to '{}'", path_buf.display()))
-    //                 }
-    //                 Err(e) => self.status_msg = Some(e.msg()),
-    //             }
-    //         }
-    //         Err(msg) => self.status_msg = Some(msg),
-    //     }
-    // }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<Action> {
         // Terminate with CTRL+C

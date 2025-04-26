@@ -1,8 +1,4 @@
-use exam_result_table::ExamResultTable;
-use grading_scale_table::GradingScaleTable;
-use report_tab::ExamChart;
 use strum_macros::EnumIter;
-use tui_input::Input;
 
 pub mod exam_result_table;
 pub mod grading_scale_table;

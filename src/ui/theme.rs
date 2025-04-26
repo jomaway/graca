@@ -1,73 +1,136 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 
-// pub struct ColorSchema {
-//     accent_color: Color,
-//     tab: Style,
-//     tab_selected: Style,
-//     block_title_focused: Style,
-//     block_focused: Style,
-//     table_header: Style,
-//     table_row_even: Style,
-//     table_row_odd: Style,
-//     bar_chart: Style,
-// }
+use crate::model::scale::GradeScaleType;
 
-pub struct Theme {
-    pub default_accent_color: Color,
-    pub key_binding: KeyBinding,
-    pub block_title_style: Style,
-    pub table_header_style: Style,
-    pub table_row_style: ZebraStyle,
-    pub bar_style: Style,
-    pub bar_chart_style: BarChartStyle,
+pub trait AppStyle {
+    fn scale_color(&self, scale_type: &GradeScaleType) -> Color;
+    fn text_color(&self, dark: bool) -> Color;
+    fn background_color(&self, dark: bool) -> Color;
+    fn text(&self) -> Style {
+        Style::default().fg(self.text_color(false))
+    }
+    fn block(&self) -> Style {
+        Style::default()
+    }
+    fn block_title(&self) -> Style {
+        Style::default()
+    }
+    fn background(&self) -> Style {
+        Style::default()
+    }
+    fn table_header(&self) -> Style;
+    fn table_row(&self, index: usize) -> Style;
+    fn table_row_selected(&self) -> Style;
+    fn table_col_selected(&self) -> Style;
+    fn tab(&self, selected: bool) -> Style;
+    fn tag(&self, colored: bool) -> Style;
+    fn indicator(&self, scale_type: Option<&GradeScaleType>) -> Style {
+        if let Some(scale) = scale_type {
+            Style::default()
+                .fg(self.background_color(true))
+                .bg(self.scale_color(scale))
+        } else {
+            Style::default()
+                .fg(self.background_color(true))
+                .bg(Color::Magenta)
+        }
+    }
+    fn command_indicator_palette(&self) -> Style {
+        Style::default()
+            .bg(self.background_color(true))
+            .fg(self.text_color(false))
+    }
+    fn top_bar(&self) -> Style;
+    fn bottom_bar(&self) -> Style;
+    fn bar_chart(&self) -> Style;
 }
-
-pub struct KeyBinding {
-    pub key: Style,
-    pub description: Style,
-}
-
-pub struct ZebraStyle {
-    pub even: Style,
-    pub odd: Style,
-    pub selected: Style,
-}
-
-pub struct BarChartStyle {
-    pub bar: Style,
-    pub bar_value: Style,
-    pub chart: Style,
-    pub label: Style,
-}
-
-pub const THEME: Theme = Theme {
-    default_accent_color: Color::Yellow,
-    key_binding: KeyBinding {
-        key: Style::new().fg(BLACK).bg(LIGHT_GRAY),
-        description: Style::new().fg(Color::Magenta).bg(BLACK),
-    },
-    block_title_style: Style::new().add_modifier(Modifier::BOLD),
-    table_header_style: Style::new().add_modifier(Modifier::ITALIC).fg(DARK_WHITE),
-    table_row_style: ZebraStyle {
-        even: Style::new().fg(DARK_WHITE).bg(GRAY),
-        odd: Style::new().fg(DARK_WHITE).bg(LIGHT_GRAY),
-        selected: Style::new()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::REVERSED)
-            .add_modifier(Modifier::BOLD),
-    },
-    bar_style: Style::new().bg(GRAY).fg(Color::Magenta),
-    bar_chart_style: BarChartStyle {
-        bar: Style::new().fg(Color::LightYellow),
-        bar_value: Style::new().fg(DARK_GRAY).bg(Color::LightYellow),
-        chart: Style::new(),
-        label: Style::new().fg(DARK_WHITE),
-    },
-};
 
 pub const DARK_WHITE: Color = Color::Rgb(213, 196, 161);
 pub const LIGHT_GRAY: Color = Color::Rgb(80, 73, 69);
 pub const GRAY: Color = Color::Rgb(60, 56, 54);
-// const MID_GRAY: Color = Color::Rgb(128, 128, 128);
-pub const DARK_GRAY: Color = Color::Rgb(68, 68, 68);
 pub const BLACK: Color = Color::Rgb(8, 8, 8); // not really black, often #080808
+
+#[derive(Debug, Default)]
+pub struct Theme;
+
+impl AppStyle for Theme {
+    fn scale_color(&self, scale_type: &GradeScaleType) -> Color {
+        match scale_type {
+            GradeScaleType::IHK => Color::Yellow,
+            GradeScaleType::TECHNIKER => Color::Blue,
+            GradeScaleType::LINEAR => Color::Green,
+            GradeScaleType::Custom(_) => Color::LightRed,
+        }
+    }
+
+    fn text_color(&self, dark: bool) -> Color {
+        match dark {
+            true => LIGHT_GRAY,
+            false => DARK_WHITE,
+        }
+    }
+
+    fn background_color(&self, dark: bool) -> Color {
+        match dark {
+            true => BLACK,
+            false => GRAY,
+        }
+    }
+
+    fn table_header(&self) -> Style {
+        Style::default()
+            .fg(DARK_WHITE)
+            .add_modifier(Modifier::ITALIC)
+    }
+
+    fn table_row(&self, index: usize) -> Style {
+        match index % 2 {
+            0 => Style::default().fg(DARK_WHITE).bg(GRAY),
+            _ => Style::default().fg(DARK_WHITE).bg(LIGHT_GRAY),
+        }
+    }
+
+    fn table_row_selected(&self) -> Style {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::REVERSED)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    fn table_col_selected(&self) -> Style {
+        Style::default()
+            .reset()
+            .add_modifier(Modifier::BOLD)
+            .fg(Color::Cyan)
+    }
+
+    fn tab(&self, selected: bool) -> Style {
+        match selected {
+            true => Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+            false => Style::default(),
+        }
+    }
+
+    fn tag(&self, colored: bool) -> Style {
+        match colored {
+            true => Style::default().bg(Color::Cyan).fg(LIGHT_GRAY),
+            false => Style::default().fg(DARK_WHITE).bg(LIGHT_GRAY),
+        }
+    }
+
+    fn top_bar(&self) -> Style {
+        Style::default().bg(GRAY).fg(Color::Magenta)
+    }
+
+    fn bottom_bar(&self) -> Style {
+        self.command_indicator_palette()
+    }
+
+    fn bar_chart(&self) -> Style {
+        Style::default().fg(Color::Cyan)
+    }
+}
+
+pub const THEME: Theme = Theme {};

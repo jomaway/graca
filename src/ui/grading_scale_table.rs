@@ -2,12 +2,12 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint},
     prelude::{Buffer, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    style::Color,
     text::Text,
     widgets::{Block, Borders, Cell, Row, StatefulWidget, Table, TableState, Widget},
 };
 
-use super::theme::THEME;
+use super::theme::{AppStyle, THEME};
 use crate::action::{Action, ModelAction};
 use tracing::debug;
 
@@ -21,7 +21,7 @@ impl GradingScaleTable {
     pub fn new() -> Self {
         Self {
             state: TableState::default().with_selected(0),
-            accent_color: THEME.default_accent_color,
+            accent_color: Color::Cyan,
             data: vec![],
         }
     }
@@ -103,15 +103,15 @@ impl Widget for &mut GradingScaleTable {
     where
         Self: Sized,
     {
-        let selected_row_style = Style::new()
-            .add_modifier(Modifier::REVERSED)
-            .add_modifier(Modifier::BOLD)
-            .fg(self.accent_color);
+        // let selected_row_style = Style::new()
+        //     .add_modifier(Modifier::REVERSED)
+        //     .add_modifier(Modifier::BOLD)
+        //     .fg(self.accent_color);
 
-        let selected_cell_style = Style::default()
-            .reset()
-            .add_modifier(Modifier::BOLD)
-            .fg(self.accent_color);
+        // let selected_cell_style = Style::default()
+        //     .reset()
+        //     .add_modifier(Modifier::BOLD)
+        //     .fg(self.accent_color);
 
         let header = [
             Text::from("GRADE"),
@@ -122,20 +122,28 @@ impl Widget for &mut GradingScaleTable {
         .into_iter()
         .map(Cell::from)
         .collect::<Row>()
-        .style(THEME.table_header_style)
+        .style(THEME.table_header())
         .height(1);
 
         let rows = self.data.iter().enumerate().map(|(i, data)| {
-            let row_style = match i % 2 {
-                0 => THEME.table_row_style.even,
-                _ => THEME.table_row_style.odd,
-            };
+            // let row_style = match i % 2 {
+            //     0 => THEME.table_row_style.even,
+            //     _ => THEME.table_row_style.odd,
+            // };
 
             let item = data.as_str_array();
             item.into_iter()
-                .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
+                .enumerate()
+                .map(|(idx, content)| {
+                    let text = if idx == 0 {
+                        Text::from(format!("\n{content}\n"))
+                    } else {
+                        Text::from(format!("\n{content}\n")).alignment(Alignment::Center)
+                    };
+                    Cell::from(text)
+                })
                 .collect::<Row>()
-                .style(row_style)
+                .style(THEME.table_row(i))
                 .height(3)
         });
 
@@ -151,15 +159,16 @@ impl Widget for &mut GradingScaleTable {
             ],
         )
         .header(header)
-        .row_highlight_style(selected_row_style)
-        .cell_highlight_style(selected_cell_style)
+        .row_highlight_style(THEME.table_row_selected())
+        .cell_highlight_style(THEME.table_col_selected())
         .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
-        // .bg(self.colors.buffer_bg)
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" 💯 Grading Scale "), // .title_style(THEME.table_title_style),
+                .title(" 💯 Grading Scale ")
+                .style(THEME.block())
+                .title_style(THEME.block_title()),
         );
 
         let clamped_area = Rect {
