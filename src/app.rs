@@ -1,20 +1,20 @@
+use color_eyre::eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use layout::Flex;
+use ratatui::prelude::*;
 use ratatui::widgets::{Block, Tabs};
+use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
 use std::io;
-use std::path::PathBuf;
 use strum::IntoEnumIterator;
+use tracing::debug;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
-
-use ratatui::prelude::*;
-use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
-use tracing::debug;
 
 use crate::action::{Action, ModelAction};
 use crate::config::AppConfig;
 use crate::model::scale::GradeScaleType;
 use crate::model::Model;
+use crate::tui::Tui;
 use crate::ui::exam_result_table::ExamResultTable;
 use crate::ui::grading_scale_table::GradingScaleTable;
 use crate::ui::report_tab::ExamChart;
@@ -46,7 +46,7 @@ impl App {
         // only for testing
         // todo: remove this
         let mut m = Model::new();
-        m.load_student_data(PathBuf::from("data/TestStudents.csv").as_path());
+        // m.load_student_data(PathBuf::from("data/TestStudents.csv").as_path());
         // &format!("{} 📔 MCR 📎 KA1", m.get_class_name())
         let restab = ExamResultTable::new()
             .with_title(&m.get_class_name())
@@ -141,11 +141,14 @@ impl App {
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn run(&mut self) -> Result<()> {
+        let mut tui = Tui::new()?;
+        tui.enter()?;
         while self.mode != AppMode::Exited {
-            terminal.draw(|frame| self.draw(frame))?;
+            tui.terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
+        tui.exit()?;
         Ok(())
     }
 

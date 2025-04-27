@@ -20,6 +20,7 @@ mod config;
 mod export;
 mod grade;
 mod logging;
+mod tui;
 
 mod model;
 mod ui;
@@ -27,17 +28,11 @@ mod ui;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // init logging
     initialize_logging()?;
+
     // parse args.
     let args = Args::parse();
     debug!("Found args: {:?}", &args);
-    // setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
 
-    // create app and run it
     info!("Starting app ...");
     let mut app = if let Ok(config) = AppConfig::read_config() {
         App::new()
@@ -48,14 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         App::new().with_points(args.points).init()
     };
     debug!("Debug mode active.");
-    let _res = app.run(&mut terminal);
+    let _res = app.run();
     info!("Terminate app with {:?}", _res);
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        crossterm::terminal::LeaveAlternateScreen
-    )?;
-    terminal.show_cursor()?;
     Ok(())
 }
