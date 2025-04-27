@@ -2,7 +2,6 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint},
     prelude::{Buffer, Rect},
-    style::Color,
     text::Text,
     widgets::{Block, Borders, Cell, Row, StatefulWidget, Table, TableState, Widget},
 };
@@ -16,7 +15,6 @@ use tracing::debug;
 
 pub struct GradingScaleTable {
     pub state: TableState,
-    accent_color: Color,
     scale_type: GradeScaleType,
     data: Vec<GradingScaleTableRowData>,
 }
@@ -25,8 +23,7 @@ impl GradingScaleTable {
     pub fn new(scale_type: GradeScaleType) -> Self {
         Self {
             state: TableState::default().with_selected(0),
-            accent_color: Color::Cyan,
-            scale_type: scale_type,
+            scale_type,
             data: vec![],
         }
     }
@@ -39,11 +36,8 @@ impl GradingScaleTable {
         None
     }
 
-    pub fn set_accent_color(&mut self, color: Color) {
-        self.accent_color = color;
-    }
-
-    pub fn update(&mut self, data: Vec<GradingScaleTableRowData>) {
+    pub fn update(&mut self, scale_type: GradeScaleType, data: Vec<GradingScaleTableRowData>) {
+        self.scale_type = scale_type;
         self.data = data;
     }
 
@@ -149,8 +143,16 @@ impl Widget for &mut GradingScaleTable {
             ],
         )
         .header(header)
-        .row_highlight_style(THEME.table_row_selected().bg(self.accent_color))
-        .cell_highlight_style(THEME.table_col_selected().fg(self.accent_color))
+        .row_highlight_style(
+            THEME
+                .table_row_selected()
+                .bg(THEME.scale_color(&self.scale_type)),
+        )
+        .cell_highlight_style(
+            THEME
+                .table_col_selected()
+                .fg(THEME.scale_color(&self.scale_type)),
+        )
         .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
         .block(

@@ -8,9 +8,7 @@ use students::StudentList;
 
 use crate::{
     action::ModelAction,
-    ui::{
-        exam_result_table::ExamResultTableRowData, grading_scale_table::GradingScaleTableRowData,
-    },
+    ui::{scale_tab::GradingScaleTableRowData, students_tab::ExamResultTableRowData},
 };
 
 #[derive(Debug, Default)]

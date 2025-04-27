@@ -10,7 +10,7 @@ use csv::Error as CsvError;
 use directories::UserDirs;
 use rust_xlsxwriter::{Format, Workbook, XlsxError};
 
-use crate::ui::grading_scale_table::GradingScaleTableRowData;
+use crate::ui::scale_tab::GradingScaleTableRowData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExportError {

@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use ratatui::style::Color;
 use serde::Deserialize;
 use strum_macros::{EnumIter, EnumString};
 
@@ -27,7 +26,7 @@ const LINEAR_BOUNDARIES: [(u8, f64); 6] = [
     (6, 0.0),
 ];
 
-#[derive(Debug, Default, Clone, Deserialize, EnumIter)]
+#[derive(Debug, Default, Clone, Copy, Deserialize, EnumIter)]
 pub enum GradeScaleType {
     #[default]
     IHK,

@@ -16,9 +16,9 @@ use crate::config::AppConfig;
 use crate::model::scale::GradeScaleType;
 use crate::model::Model;
 use crate::tui::Tui;
-use crate::ui::exam_result_table::ExamResultTable;
-use crate::ui::grading_scale_table::GradingScaleTable;
 use crate::ui::report_tab::ExamChart;
+use crate::ui::scale_tab::GradingScaleTable;
+use crate::ui::students_tab::ExamResultTable;
 use crate::ui::theme::{AppStyle, THEME};
 use crate::ui::AppTab;
 
@@ -95,12 +95,6 @@ impl App {
         self
     }
 
-    fn update_accent_color(&mut self) {
-        let scale = self.model.scale.scale_type();
-        let color = THEME.scale_color(scale);
-        self.scale_tab.set_accent_color(color);
-    }
-
     fn update(&mut self, action: Action) {
         debug!("ACTION: {}", action);
 
@@ -122,8 +116,8 @@ impl App {
                 self.report_tab
                     .set_data(&chart_data, self.model.grade_average());
                 self.results_tab.set_data(self.model.get_student_data());
-                self.scale_tab.update(self.model.get_scale_data());
-                self.update_accent_color();
+                self.scale_tab
+                    .update(*self.model.scale.scale_type(), self.model.get_scale_data());
             }
             Action::LoadStudentList(path_buf) => {
                 self.model

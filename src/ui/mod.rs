@@ -1,8 +1,8 @@
 use strum_macros::EnumIter;
 
-pub mod exam_result_table;
-pub mod grading_scale_table;
 pub mod report_tab;
+pub mod scale_tab;
+pub mod students_tab;
 pub mod theme;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, EnumIter)]
