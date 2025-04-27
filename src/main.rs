@@ -1,4 +1,3 @@
-use config::AppConfig;
 use logging::initialize_logging;
 
 pub use app::App;
@@ -8,7 +7,6 @@ use tracing::{debug, info};
 mod action;
 mod app;
 mod cli;
-mod command;
 mod config;
 mod export;
 mod logging;
