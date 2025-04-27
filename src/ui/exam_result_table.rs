@@ -30,7 +30,7 @@ impl ExamResultTable {
         Self {
             title: "Exam Results".into(),
             accent_color: Color::Cyan,
-            state: TableState::new(),
+            state: TableState::default().with_selected(0),
             scroll_state: ScrollbarState::default(),
             data: Vec::new(),
         }
@@ -61,6 +61,7 @@ impl ExamResultTable {
 
     fn scroll_to_selected(&mut self) {
         if let Some(index) = self.state.selected() {
+            tracing::debug!("IDX: {index}");
             self.scroll_state = self.scroll_state.position(index * ITEM_HEIGHT);
         }
     }

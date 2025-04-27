@@ -4,6 +4,7 @@ use crate::model::scale::GradeScaleType;
 
 pub trait AppStyle {
     fn scale_color(&self, scale_type: &GradeScaleType) -> Color;
+    fn accent_color(&self) -> Color;
     fn text_color(&self, dark: bool) -> Color;
     fn background_color(&self, dark: bool) -> Color;
     fn text(&self) -> Style {
@@ -63,6 +64,10 @@ impl AppStyle for Theme {
         }
     }
 
+    fn accent_color(&self) -> Color {
+        Color::Cyan
+    }
+
     fn text_color(&self, dark: bool) -> Color {
         match dark {
             true => LIGHT_GRAY,
@@ -92,7 +97,7 @@ impl AppStyle for Theme {
 
     fn table_row_selected(&self) -> Style {
         Style::default()
-            .fg(Color::Cyan)
+            .fg(self.accent_color())
             .add_modifier(Modifier::REVERSED)
             .add_modifier(Modifier::BOLD)
     }
@@ -101,21 +106,19 @@ impl AppStyle for Theme {
         Style::default()
             .reset()
             .add_modifier(Modifier::BOLD)
-            .fg(Color::Cyan)
+            .fg(self.accent_color())
     }
 
     fn tab(&self, selected: bool) -> Style {
         match selected {
-            true => Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-            false => Style::default(),
+            true => self.tag(true).reversed().bold(),
+            false => self.text(),
         }
     }
 
     fn tag(&self, colored: bool) -> Style {
         match colored {
-            true => Style::default().bg(Color::Cyan).fg(LIGHT_GRAY),
+            true => Style::default().bg(self.accent_color()).fg(LIGHT_GRAY),
             false => Style::default().fg(DARK_WHITE).bg(LIGHT_GRAY),
         }
     }
