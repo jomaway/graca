@@ -11,7 +11,6 @@ use super::theme::{AppStyle, THEME};
 #[derive(Debug, Default, Clone)]
 pub struct ExamChart {
     data: [u8; 6],
-    accent_color: Color,
     avg: f64,
 }
 
@@ -23,10 +22,6 @@ impl ExamChart {
     pub fn set_data(&mut self, values: &[u8; 6], avg: f64) {
         self.data = values.to_owned();
         self.avg = avg;
-    }
-
-    pub fn set_accent_color(&mut self, color: Color) {
-        self.accent_color = color;
     }
 }
 
@@ -74,7 +69,6 @@ impl Widget for &ExamChart {
             height: std::cmp::min(30, area.height),
         };
 
-        tracing::info!("AREA WIDTH {}", area.width);
         BarChart::default()
             .block(block.padding(Padding {
                 left: 4,

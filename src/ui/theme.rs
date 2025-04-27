@@ -97,8 +97,9 @@ impl AppStyle for Theme {
 
     fn table_row_selected(&self) -> Style {
         Style::default()
-            .fg(self.accent_color())
-            .add_modifier(Modifier::REVERSED)
+            .bg(self.accent_color())
+            .fg(self.text_color(true))
+            // .add_modifier(Modifier::REVERSED)
             .add_modifier(Modifier::BOLD)
     }
 

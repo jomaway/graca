@@ -13,7 +13,7 @@ pub enum Action {
     UpdateView,
     UpdateModel(ModelAction),
     LoadStudentList(PathBuf),
-    ExportTo(PathBuf),
+    ExportTo(Option<PathBuf>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Display)]

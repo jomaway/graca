@@ -3,8 +3,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use layout::Flex;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Tabs};
-use ratatui::{text::Line, widgets::Paragraph, DefaultTerminal, Frame};
+use ratatui::{text::Line, Frame};
 use std::io;
+use std::path::PathBuf;
 use strum::IntoEnumIterator;
 use tracing::debug;
 use tui_input::backend::crossterm::EventHandler;
@@ -33,70 +34,71 @@ pub struct App {
     config: AppConfig,
     mode: AppMode,
     model: Model,
+    student_data_file_path: Option<PathBuf>,
     scale_tab: GradingScaleTable,
     results_tab: ExamResultTable,
     report_tab: ExamChart,
     input_field: Input,
-    status_msg: Option<String>,
     selected_tab: AppTab,
 }
 
 impl App {
     pub fn new() -> Self {
-        // only for testing
-        // todo: remove this
-        let mut m = Model::new();
-        // m.load_student_data(PathBuf::from("data/TestStudents.csv").as_path());
-        // &format!("{} 📔 MCR 📎 KA1", m.get_class_name())
-        let restab = ExamResultTable::new()
-            .with_title(&m.get_class_name())
-            .with_data(m.get_student_data());
+        let config = if let Ok(config) = AppConfig::read_config() {
+            config
+        } else {
+            AppConfig::default()
+        };
 
         Self {
-            config: AppConfig::new(),
+            config,
             mode: AppMode::Normal,
-            model: m,
+            model: Model::new(),
+            student_data_file_path: None,
             scale_tab: GradingScaleTable::new(GradeScaleType::IHK),
-            results_tab: restab,
+            results_tab: ExamResultTable::new(),
             report_tab: ExamChart::default(),
             input_field: Input::default(),
-            status_msg: None,
             selected_tab: AppTab::default(),
         }
     }
 
     pub fn with_config(mut self, config: AppConfig) -> Self {
-        self.change_scale(config.get_default_scale());
+        self.model
+            .scale
+            .change_scale_type(config.get_default_scale());
         self.config = config;
         self
     }
 
     pub fn with_points(mut self, points: u32) -> Self {
-        self.set_points(points);
+        self.model.scale.set_max_points(points as f64);
+        self
+    }
+
+    pub fn with_course(mut self, course_file_path: Option<PathBuf>) -> Self {
+        if let Some(path_buf) = course_file_path {
+            if let Err(e) = self.model.load_student_data(path_buf.as_path()) {
+                debug!("{e}")
+            } else {
+                self.student_data_file_path = Some(path_buf);
+            }
+        };
         self
     }
 
     pub fn init(mut self) -> Self {
+        self.model
+            .scale
+            .change_scale_type(self.config.get_default_scale());
         self.update(Action::UpdateView);
         self
-    }
-
-    pub fn set_points(&mut self, points: u32) {
-        // self.calculator.total_points = points;
-        self.model.scale.set_max_points(points as f64);
-    }
-
-    fn change_scale(&mut self, scale: GradeScaleType) {
-        self.model.scale.change_scale_type(scale);
-        self.update_accent_color();
     }
 
     fn update_accent_color(&mut self) {
         let scale = self.model.scale.scale_type();
         let color = THEME.scale_color(scale);
         self.scale_tab.set_accent_color(color);
-        self.results_tab.set_accent_color(color);
-        self.report_tab.set_accent_color(color);
     }
 
     fn update(&mut self, action: Action) {
@@ -136,7 +138,11 @@ impl App {
                 self.update(Action::UpdateView);
             }
             Action::ExportTo(_) => {
-                todo!();
+                if let Some(file_path) = self.student_data_file_path.clone() {
+                    if let Err(e) = self.model.save_student_data(file_path.as_path()) {
+                        tracing::error!("{e}")
+                    }
+                }
             }
         }
     }
@@ -144,10 +150,12 @@ impl App {
     pub fn run(&mut self) -> Result<()> {
         let mut tui = Tui::new()?;
         tui.enter()?;
+
         while self.mode != AppMode::Exited {
             tui.terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
+
         tui.exit()?;
         Ok(())
     }
@@ -199,7 +207,7 @@ impl App {
                     + half_identifier_text.len()) as u16,
             ),
             Constraint::Percentage(100),
-            Constraint::Length(12),
+            Constraint::Length(7),
         ])
         .areas(area);
 
@@ -211,12 +219,8 @@ impl App {
         let identifier =
             Line::default().spans([scale_identifier, point_identifier, half_identifier]);
 
-        let version = Paragraph::new(format!(
-            "{}::{}",
-            env!("CARGO_PKG_NAME").to_uppercase(),
-            env!("CARGO_PKG_VERSION")
-        ))
-        .right_aligned();
+        let version = Span::from(format!(" {} ", env!("CARGO_PKG_NAME").to_uppercase()))
+            .style(THEME.indicator(None));
 
         identifier.render(identifier_area, buf);
         self.render_tabs(tabs_area, buf);
@@ -284,7 +288,6 @@ impl App {
     }
 
     fn enter_insert_mode(&mut self) {
-        self.status_msg = None;
         self.mode = AppMode::Insert;
     }
 
@@ -319,6 +322,7 @@ impl App {
                 KeyCode::Char('.') => Some(Action::UpdateModel(ModelAction::ToggleHalfPoints)),
 
                 KeyCode::Char('q') => Some(Action::Quit),
+                KeyCode::Char('e') => Some(Action::ExportTo(None)),
 
                 _ => match self.selected_tab {
                     AppTab::Scale => self.scale_tab.handle_event(key_event),

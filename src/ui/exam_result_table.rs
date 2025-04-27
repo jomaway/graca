@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Rect},
-    style::Color,
+    style::{Color, Modifier, Style},
     text::{Line, Text},
     widgets::{
         Block, BorderType, Borders, Cell, Row, ScrollbarState, StatefulWidget, Table, TableState,
@@ -19,7 +19,6 @@ const ITEM_HEIGHT: usize = 4;
 #[derive(Debug, Default, Clone)]
 pub struct ExamResultTable {
     title: String,
-    accent_color: Color,
     state: TableState,
     scroll_state: ScrollbarState,
     data: Vec<ExamResultTableRowData>,
@@ -29,8 +28,9 @@ impl ExamResultTable {
     pub fn new() -> Self {
         Self {
             title: "Exam Results".into(),
-            accent_color: Color::Cyan,
-            state: TableState::default().with_selected(0),
+            state: TableState::default()
+                .with_selected(0)
+                .with_selected_column(1),
             scroll_state: ScrollbarState::default(),
             data: Vec::new(),
         }
@@ -48,10 +48,6 @@ impl ExamResultTable {
 
     pub fn set_title(&mut self, title: &str) {
         self.title = title.into();
-    }
-
-    pub fn set_accent_color(&mut self, color: Color) {
-        self.accent_color = color;
     }
 
     pub fn set_data(&mut self, data: Vec<ExamResultTableRowData>) {
@@ -129,11 +125,26 @@ impl Widget for &mut ExamResultTable {
             item.into_iter()
                 .enumerate()
                 .map(|(idx, content)| {
-                    let text = if idx == 0 {
-                        Text::from(format!("\n{content}\n"))
-                    } else {
-                        Text::from(format!("\n{content}\n")).alignment(Alignment::Center)
+                    let text = format!("\n{content}\n");
+                    let mut align = Alignment::Left;
+
+                    if idx != 0 {
+                        align = Alignment::Center
+                    }
+
+                    let grade_style = match data.grade {
+                        5 | 6 => Style::new().bg(Color::Red).add_modifier(Modifier::BOLD),
+                        3 | 4 => Style::new().bg(Color::Yellow).add_modifier(Modifier::BOLD),
+                        1 | 2 => Style::new().bg(Color::Green).add_modifier(Modifier::BOLD),
+                        _ => Style::new().add_modifier(Modifier::BOLD),
                     };
+
+                    let mut text = Text::from(text).alignment(align);
+
+                    if idx == 3 {
+                        text = text.patch_style(grade_style);
+                    }
+
                     Cell::from(text)
                 })
                 .collect::<Row>()
@@ -146,7 +157,7 @@ impl Widget for &mut ExamResultTable {
             rows,
             [
                 // + 1 is for padding.
-                Constraint::Fill(1),
+                Constraint::Min(2),
                 Constraint::Min(1),
                 Constraint::Min(1),
                 Constraint::Min(1),
@@ -154,8 +165,8 @@ impl Widget for &mut ExamResultTable {
         )
         .block(block)
         .header(header)
-        .row_highlight_style(THEME.table_row_selected())
-        .cell_highlight_style(THEME.table_col_selected())
+        // .row_highlight_style(THEME.table_row_selected())
+        .cell_highlight_style(THEME.table_row_selected())
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
         .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]));
 

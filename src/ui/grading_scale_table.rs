@@ -149,7 +149,7 @@ impl Widget for &mut GradingScaleTable {
             ],
         )
         .header(header)
-        .row_highlight_style(THEME.table_row_selected().fg(self.accent_color))
+        .row_highlight_style(THEME.table_row_selected().bg(self.accent_color))
         .cell_highlight_style(THEME.table_col_selected().fg(self.accent_color))
         .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)

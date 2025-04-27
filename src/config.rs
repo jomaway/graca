@@ -22,7 +22,7 @@ lazy_static! {
     pub static ref LOG_FILE: String = format!("{}.log", env!("CARGO_PKG_NAME"));
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct AppConfig {
     export_path: Option<PathBuf>,
     default_scale: GradeScaleType,
