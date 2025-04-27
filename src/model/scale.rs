@@ -81,16 +81,6 @@ impl GradeScaleType {
         }
     }
 
-    // return an associated color
-    pub fn color(&self) -> Color {
-        match &self {
-            GradeScaleType::IHK => Color::Yellow,
-            GradeScaleType::TECHNIKER => Color::Blue,
-            GradeScaleType::LINEAR => Color::Green,
-            GradeScaleType::Custom(_) => Color::LightRed,
-        }
-    }
-
     // Check if it is a custom scale
     pub fn is_custom(&self) -> bool {
         matches!(self, GradeScaleType::Custom(_))

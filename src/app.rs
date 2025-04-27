@@ -56,7 +56,7 @@ impl App {
             config: AppConfig::new(),
             mode: AppMode::Normal,
             model: m,
-            scale_tab: GradingScaleTable::new(),
+            scale_tab: GradingScaleTable::new(GradeScaleType::IHK),
             results_tab: restab,
             report_tab: ExamChart::default(),
             input_field: Input::default(),
@@ -93,9 +93,10 @@ impl App {
 
     fn update_accent_color(&mut self) {
         let scale = self.model.scale.scale_type();
-        self.scale_tab.set_accent_color(scale.color());
-        self.results_tab.set_accent_color(scale.color());
-        self.report_tab.set_accent_color(scale.color());
+        let color = THEME.scale_color(scale);
+        self.scale_tab.set_accent_color(color);
+        self.results_tab.set_accent_color(color);
+        self.report_tab.set_accent_color(color);
     }
 
     fn update(&mut self, action: Action) {
@@ -181,7 +182,6 @@ impl App {
     fn render_header_bar(&self, area: Rect, buf: &mut Buffer) {
         Block::default().style(THEME.top_bar()).render(area, buf);
 
-        // let text = format!(" {} ", self.model.scale.scale_type().text());
         let scale_identifier_text = format!(" {} ", self.model.scale.scale_type().text());
         let point_identifier_text = format!(" {} PTs ", self.model.scale.max_points());
         let half_identifier_text = match self.model.scale.is_using_half_points() {
@@ -297,28 +297,16 @@ impl App {
         match self.mode {
             AppMode::Insert => match key_event.code {
                 KeyCode::Esc => Some(Action::LeaveInsertMode),
-                KeyCode::Enter => {
-                    // self.execute_command();
-                    Some(Action::LeaveInsertMode)
-                }
+                KeyCode::Enter => Some(Action::LeaveInsertMode),
                 _ => {
                     self.input_field.handle_event(&Event::Key(key_event));
                     None
                 }
             },
             AppMode::Normal => match key_event.code {
-                KeyCode::F(1) | KeyCode::Char('1') => {
-                    // self.selected_tab = SelectedTab::Scale;
-                    Some(Action::SwitchTab(AppTab::Scale))
-                }
-                KeyCode::F(2) | KeyCode::Char('2') => {
-                    // self.selected_tab = SelectedTab::Result;
-                    Some(Action::SwitchTab(AppTab::Result))
-                }
-                KeyCode::F(3) | KeyCode::Char('3') => {
-                    // self.selected_tab = SelectedTab::Report;
-                    Some(Action::SwitchTab(AppTab::Report))
-                }
+                KeyCode::F(1) | KeyCode::Char('1') => Some(Action::SwitchTab(AppTab::Scale)),
+                KeyCode::F(2) | KeyCode::Char('2') => Some(Action::SwitchTab(AppTab::Result)),
+                KeyCode::F(3) | KeyCode::Char('3') => Some(Action::SwitchTab(AppTab::Report)),
                 KeyCode::Char(':') => Some(Action::EnterInsertMode),
                 KeyCode::Char('I') => Some(Action::UpdateModel(ModelAction::SetScale(1))),
                 KeyCode::Char('T') => Some(Action::UpdateModel(ModelAction::SetScale(2))),

@@ -8,20 +8,25 @@ use ratatui::{
 };
 
 use super::theme::{AppStyle, THEME};
-use crate::action::{Action, ModelAction};
+use crate::{
+    action::{Action, ModelAction},
+    model::scale::GradeScaleType,
+};
 use tracing::debug;
 
 pub struct GradingScaleTable {
     pub state: TableState,
     accent_color: Color,
+    scale_type: GradeScaleType,
     data: Vec<GradingScaleTableRowData>,
 }
 
 impl GradingScaleTable {
-    pub fn new() -> Self {
+    pub fn new(scale_type: GradeScaleType) -> Self {
         Self {
             state: TableState::default().with_selected(0),
             accent_color: Color::Cyan,
+            scale_type: scale_type,
             data: vec![],
         }
     }
@@ -103,16 +108,6 @@ impl Widget for &mut GradingScaleTable {
     where
         Self: Sized,
     {
-        // let selected_row_style = Style::new()
-        //     .add_modifier(Modifier::REVERSED)
-        //     .add_modifier(Modifier::BOLD)
-        //     .fg(self.accent_color);
-
-        // let selected_cell_style = Style::default()
-        //     .reset()
-        //     .add_modifier(Modifier::BOLD)
-        //     .fg(self.accent_color);
-
         let header = [
             Text::from("GRADE"),
             Text::from("MIN").alignment(Alignment::Center),
@@ -126,11 +121,6 @@ impl Widget for &mut GradingScaleTable {
         .height(1);
 
         let rows = self.data.iter().enumerate().map(|(i, data)| {
-            // let row_style = match i % 2 {
-            //     0 => THEME.table_row_style.even,
-            //     _ => THEME.table_row_style.odd,
-            // };
-
             let item = data.as_str_array();
             item.into_iter()
                 .enumerate()
@@ -159,8 +149,8 @@ impl Widget for &mut GradingScaleTable {
             ],
         )
         .header(header)
-        .row_highlight_style(THEME.table_row_selected())
-        .cell_highlight_style(THEME.table_col_selected())
+        .row_highlight_style(THEME.table_row_selected().fg(self.accent_color))
+        .cell_highlight_style(THEME.table_col_selected().fg(self.accent_color))
         .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
         .block(

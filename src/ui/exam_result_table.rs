@@ -125,11 +125,6 @@ impl Widget for &mut ExamResultTable {
         .height(1);
 
         let rows = self.data.iter().enumerate().map(|(index, data)| {
-            // let row_style = match i % 2 {
-            //     0 => THEME.table_row_style.even,
-            //     _ => THEME.table_row_style.odd,
-            // };
-
             let item = data.as_str_array();
             item.into_iter()
                 .enumerate()
@@ -145,16 +140,6 @@ impl Widget for &mut ExamResultTable {
                 .style(THEME.table_row(index))
                 .height(3)
         });
-
-        // let selected_row_style = Style::new()
-        //     .add_modifier(Modifier::REVERSED)
-        //     .add_modifier(Modifier::BOLD)
-        //     .fg(self.accent_color);
-
-        // let selected_cell_style = Style::default()
-        //     .reset()
-        //     .add_modifier(Modifier::BOLD)
-        //     .fg(self.accent_color);
 
         let bar = " █ ";
         let table = Table::new(

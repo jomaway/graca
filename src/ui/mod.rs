@@ -22,12 +22,3 @@ impl AppTab {
         }
     }
 }
-
-// pub struct View {
-//     scale_table: GradingScaleTable,
-//     result_table: ExamResultTable,
-//     exam_chart: ExamChart,
-//     input_field: Input,
-//     status_msg: Option<String>,
-//     selected_tab: AppTab,
-// }

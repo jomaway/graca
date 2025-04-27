@@ -71,7 +71,7 @@ impl Widget for &ExamChart {
             x: area.x,
             y: area.y,
             width: area.width,
-            height: std::cmp::min(30, area.height), // clamp height to 21 if area is bigger.
+            height: std::cmp::min(30, area.height),
         };
 
         tracing::info!("AREA WIDTH {}", area.width);
