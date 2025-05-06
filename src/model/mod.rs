@@ -5,6 +5,7 @@ use std::{collections::HashMap, path::Path};
 
 use scale::{round_dp, Grade, GradeScaleType, GradingScale};
 use students::StudentList;
+use tracing::debug;
 
 use crate::{
     action::ModelAction,
@@ -147,7 +148,7 @@ impl Model {
             counts
                 .entry(grade.to_number())
                 .and_modify(|counter| *counter += 1)
-                .or_insert(0);
+                .or_insert(1);
         }
 
         counts

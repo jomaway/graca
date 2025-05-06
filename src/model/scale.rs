@@ -254,7 +254,7 @@ pub fn round_dp(value: f64, dp: usize) -> f64 {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, EnumString, Ord, PartialOrd)]
 pub enum Grade {
-    VeryGood,     // 1
+    VeryGood = 1, // 1
     Good,         // 2
     Satisfactory, // 3
     Sufficient,   // 4
